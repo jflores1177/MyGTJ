@@ -1,0 +1,38 @@
+1                    J E S 2  J O B  L O G  --  S Y S T E M  A D C D  --  N O D E  G T Z D V 1 C         
+0 
+ 17.20.27 JOB01640 ---- THURSDAY,  30 JUN 2011 ----
+ 17.20.27 JOB01640  IRR010I  USERID SYSJF    IS ASSIGNED TO THIS JOB.
+ 17.20.27 JOB01640  ICH70001I SYSJF    LAST ACCESS AT 17:20:26 ON THURSDAY, JUNE 30, 2011
+ 17.20.27 JOB01640  $HASP373 SYSJFZ   STARTED - INIT 1    - CLASS A - SYS ADCD
+ 17.20.27 JOB01640  IEF403I SYSJFZ - STARTED - TIME=17.20.27
+ 17.20.27 JOB01640  IEF404I SYSJFZ - ENDED - TIME=17.20.27
+ 17.20.27 JOB01640  $HASP395 SYSJFZ   ENDED
+0------ JES2 JOB STATISTICS ------
+-  30 JUN 2011 JOB EXECUTION DATE
+-          636 CARDS READ
+-           34 SYSOUT PRINT RECORDS
+-            0 SYSOUT PUNCH RECORDS
+-            2 SYSOUT SPOOL KBYTES
+-         0.00 MINUTES EXECUTION TIME
+ !! END OF JES SPOOL FILE !!
+        1 //SYSJFZ   JOB (GT,1111),'NSTEP1',CLASS=A,MSGCLASS=H,MSGLEVEL=(0,0)     JOB01640
+          //* ***********************************************************                 
+ !! END OF JES SPOOL FILE !!
+ ICH70001I SYSJF    LAST ACCESS AT 17:20:26 ON THURSDAY, JUNE 30, 2011
+ IEF142I SYSJFZ LISTM - STEP WAS EXECUTED - COND CODE 0000
+ IEF373I STEP/LISTM   /START 2011181.1720
+ IEF032I STEP/LISTM   /STOP  2011181.1720 
+         CPU:     0 HR  00 MIN  00.05 SEC    SRB:     0 HR  00 MIN  00.00 SEC    
+         VIRT:   112K  SYS:   272K  EXT:        4K  SYS:     9408K
+ IEF375I  JOB/SYSJFZ  /START 2011181.1720
+ IEF033I  JOB/SYSJFZ  /STOP  2011181.1720 
+         CPU:     0 HR  00 MIN  00.05 SEC    SRB:     0 HR  00 MIN  00.00 SEC    
+ !! END OF JES SPOOL FILE !!
+1AMASPZAP  INSPECTS, MODIFIES, AND DUMPS CSECTS OR SPECIFIC DATA RECORDS ON DIRECT ACCESS STORAGE.                       
+ NAME GTA#INIT GTA#LOAD                                                                                                  
+ VER 00F6 00                                                                                                             
+ REP 00F6 95                                                                                                             
+ AMA122I OLD DATA WAS 00                                                                                                 
+ AMA125I GTA#INIT IDR COUNT = 0002 (MAX=0019)                                                                            
+ AMA100I AMASPZAP PROCESSING COMPLETED                                                                                   
+ !! END OF JES SPOOL FILE !!
