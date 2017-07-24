@@ -1,0 +1,244 @@
+@,INITIAL ,01010100000000000000,        ,06,07,22,73,+-+||+-+                  .
+ This is an example of theDBGHelp function. Each process                     .
+ can have its corresponding help window. The help text must                    .
+ be placed in the HELPT.DAT file. The record size of this                      .
+ file must be 82 bytes. To make sure it contains 82 bytes, a                   .
+ character may be placed on column 80 of each record. The                      .
+ additional 2 bytes are the Carriage Return and Line Feed                      .
+ respectively. The help file is a standard DOS text file.                      .
+                                                                               .
+ There are two types of text records in the help file: the                     .
+ command record and the text record. The command record has                    .
+ five fields: the command identification field (@), the                        .
+ process name field, the level field with the level code of                    .
+ the process, the sub-process name field, the box coordinates                  .
+ field, and the box characters field. All codes and names are                  .
+ sent to the help program by DBG, to locate the help text on                   .
+ the HELPT.DAT file.                                                           .
+                                                                               .
+ The help text can be of any length. The last record of the                    .
+ help text for a given function must be coded with 8 nines                     .
+ (99999999) on columns 73 to 80.                                               .
+                                                                               .
+ To highlight specific words of the text the words must be                     .
+ preceded by the code X'0F' and followed by the code X'0B'.                    .
+ This codes represent attributes 5C and D4 restectivly. For a                  .
+ complete list of 3270 attributes see the following table:                     .
+                                                                               .
+                                                                               .
+                                                                               .
+ *************************************************************                 .
+ *              ATTRIBUTES TABLE EQUIVALENCE               *                 .
+ *  HEX:    1  .  .  4  .  .  7  .  .  A  .  .  D  .  . 10   *                 .
+ *  DEC:    1  .  .  .  5  .  .  .  . 10  .  .  .  . 15  .   *                 .
+ *        40 C1 C4 C5 C8 C9 4C 4D 50 D1 D4 D5 D8 D9 5C 5D  *                 .
+ *  HEX:   11  .  . 14  .  . 17  .  . 1A  .  . 1D  .  . 20   *                 .
+ *  DEC:    .  .  . 20  .  .  .  .  25 .  .  .  . 30  .  .   *                 .
+ *        60 61 E4 E5 E8 E9 6C 6D F0 F1 F4 F5 F8 F9 7C 7D  *                 .
+ *************************************************************                 .
+                                                                               .
+                     Command record format:                                    .
+@|SYSNAMES|.PROCESS LEVEL CODE.|SUB-PROC|TR,LC,BR,RC|+-+||+-+                .
+                                                                               .
+ Where:                                                                        .
+COL LEN DESCRIPTION                                                        .
+  1   1   @:command indicator code                                           .
+  3   8   SYSNAME:name used for system on tree level file                    .
+            MENUS2.DAT                                                       .
+ 12  20   PROCESS LEVEL CODE:level code used on tree level                   .
+             fileMENUS2.DATfor function.                                     .
+ 33   8   SUB-PROC:additional identifier for sub-processes                   .
+ 42  11   TR,LC,BR,RC:top row, left column, bottom row and                   .
+             right column box coordinates.                                     .
+ 54   8   +-+||+-+:characters used for:top left corner, top                  .
+             border line, top right corner, left border line,                  .
+             right border line, bottom left corner, bottom                     .
+             border line and bottom right corner.                              .
+                Fields must be separated by commas.                   99999999
+@,INITIAL ,01010200000000000000                                         99999999
+@,INITIAL ,01010300000000000000                                                .
+         DBG WINDOWS DEFINITION LANGUAGE COMMANDS AND SYNTAX:                .
+                                                                               .
+INTRODUCTION:                                                                .
+ TheDBGmenu definition language is used to define the menu tree              .
+ used by the application been established.  The menu tree is the               .
+ collection of menus and sub-menus that a particular system may need           .
+ to gain access to the different processes and sub-processes.                  .
+                                                                               .
+ The menus may be arranged in several ways, for instance in a                  .
+ horizontal or vertical manner, with a box surrounding it,                     .
+ optionally with specified characters used for the drawing of the              .
+ box or using the defaultDBGcharacters, and more. For more                   .
+ information see command description.                                          .
+                                                                               .
+ It is suggested to use a horizontal menu for the main menu, from              .
+ which pull down menus may be set.  Menus and sub-menus can be                 .
+ defined on any screen location, although it's preferable to                   .
+ directly relate menus, locating them on contiguous locations to               .
+ depict an obviously simple relation.                                          .
+                                                                               .
+GENERAL COMMANDS SYNTAX AND COMMAND FILE DESCRIPTION:                        .
+*<-an asteriskon columns 1means this is a comments line.                   .
+ <-a blankon column 1means this is a comments line.                        .
+ All commands must starton column 1,otherwise treated as comments.           .
+Only onecommand per line permitted. Commands must include a space            .
+ or special character as indicated. Special characters such as'@',           .
+'&',etc., must be issued as shown in examples. Commands must be              .
+ inupper caseletters. Lower and upper case letters may be used               .
+onlyfor literal data.                                                        .
+                                                                               .
+ Text after commands can be used ascommentsand are ignored. Where            .
+ specified, a default option may be used. Information between square           .
+ brackets areoptional.All command parameters arepositional.Where           .
+ applicable, use commas to delimit parameters.                                 .
+                                                                               .
+LIST OF COMMANDS:                                                            .
+BOX                                                                          .
+ SYNTAX: @ T,LF,BT,RT BOX ½'CHARACTERS'                                      .
+                                                                               .
+DESCRIPTION:                                                                 .
+ The box command generates a box on a particular location on the               .
+ screen as specified on the top, left, bottom, right parameters and            .
+ optional box building characters may be supplied. The box area will           .
+ be erased before printing.                                                    .
+                                                                               .
+@:                                                                           .
+ PRINT COMMAND INDICATOR                                                       .
+                                                                               .
+BOX COORDINATES:                                                             .
+ T=TOP ROW, LF=TOP COLUMN, BT=BOTTOM ROW, RT=BOTTOM COLUMN                     .
+                                                                               .
+CHARACTERS:                                                                  .
+ 'T-LF T-LN T-RT LF-COL RT-COL B-LF B-LN B-RT'                                 .
+ WHERE: T=TOP, LF=LEFT, B=BOTTOM, RT=RIGHT, LN=LINE, COLUMN                    .
+        COL=COLUMN                                                             .
+                                                                               .
+EXAMPLE:(ALWAYS START ON COLUMN 1)                                           .
+@ 2,4,5,70 BOX '+-+||+-+'                                                    .
+                                                                               .
+  RESULTS:                                                                   .
+                                                                               .
+    1...5...10.<--- COLUMNS --->.70...75...80                                  .
+   1                                                                           .
+   2  +---------------------------+                                          .
+   3  |                           |                                          .
+   4  |                           |                                          .
+   5  +---------------------------+                                          .
+   6                                                                           .
+   7<--- ROWS                                                                  .
+                                                                               .
+  DEFAULTS:                                                                  .
+     BOX CHARACTERS = '---||---'                                               .
+                                                                               .
+ACHOICE()                                                                    .
+ SYNTAX: ACHOICE(T,LF,BT,RT ½,ARRAY1! ½,'CHARACTERS'! ½,HORIZ!)              .
+                                                                               .
+DESCRIPTION:                                                                 .
+ The achoice command generates a box or a line on a particular                 .
+ location on the screen as specified on the top, left, bottom, right           .
+ parameters and uses the information between the<text>and                    .
+<end text>commands addressed by the<array1>parameter for a list            .
+ of choices. Optionally box building characters may be supplied. The           .
+ box area will be erased before printing.                                      .
+                                                                               .
+BOX COORDINATES:                                                             .
+ T=TOP ROW, LF=TOP COLUMN, BT=BOTTOM ROW, RT=BOTTOM COLUMN                     .
+                                                                               .
+ARRAY1:                                                                      .
+ Optional, name on text command that encloses a list of choices in             .
+ the box.                                                                      .
+                                                                               .
+CHARACTERS:                                                                  .
+ Omission of this parameter means use the default box characters. A            .
+ blank character specified means no box generation.                            .
+                                                                               .
+'T-LF T-LN T-RT LF-COL RT-COL B-LF B-LN B-RT'                                .
+ WHERE: T=TOP, LF=LEFT, B=BOTTOM, RT=RIGHT, LN=LINE, COL=COLUMN                .
+                                                                               .
+HORIZ:                                                                       .
+ Any non-blank character indicates the horizontal option wanted. if            .
+ specified, menu option text must be separated by at least 3 blank             .
+ spaces, to make room for the attributes and the cursor. Blanks                .
+ within option text are not allowed. For vertical menus, the cursor            .
+ is placed one space to the right of the longest menu option text and          .
+ the box should leave enough room for attributes, text and cursor              .
+ location, which is equivalent to a one byte unprotected field.                .
+                                                                               .
+   EXAMPLE:(ALWAYS START ON COLUMN 1)                                        .
+     ACHOICE(2,4,5,23,MENU1,'+-+||+-+')                                      .
+     TEXT(MENU1)                                                             .
+     MENU OPTION 1                                                           .
+     MENU OPTION 2                                                           .
+     END TEXT                                                                .
+                                                                               .
+   RESULTS:                                                                  .
+                          222..8                                               .
+     12345..<- COLUMNS ->.234..0                                               .
+    1                                                                          .
+    2  +------------------+                                                  .
+    3  | MENU OPTION 1 _  |                                                  .
+    4  | MENU OPTION 2 _  |                                                  .
+    5  +------------------+                                                  .
+    6                                                                          .
+    7<--ROWS                                                                   .
+                                                                               .
+   DEFAULTS:                                                                 .
+      MENU1 = Achoice followed by menu options enclosed in                     .
+             <TEXT>and<END TEXT>commands.                                  .
+      BOX CHARACTERS ='---||---'                                             .
+      HORIZ = Not used, vertical menus type assumed.                           .
+                                                                               .
+ EXT                                                                         .
+  SYNTAX: @ ROW,COL TEXT ½LABEL!                                             .
+          INFORMATION..                                                      .
+          INFORMATION..                                                      .
+          END TEXT                                                           .
+                                                                               .
+DESCRIPTION:                                                                 .
+ The text command encloses information to be printed exactly as it is          .
+ defined starting on screen locations designated by the<row,col>             .
+ parameters. Text must be delimited by the<end text>command.                 .
+                                                                               .
+   @:                                                                        .
+     PRINT COMMAND INDICATOR                                                 .
+                                                                               .
+   ROW,COL COORDINATES:                                                      .
+      Row=top screen row location  col=top screen column location.             .
+                                                                               .
+   LABEL:                                                                    .
+      Optimal, name of text data referred to by other commands.                .
+                                                                               .
+                                                                               .
+                                                                               .
+   EXAMPLE:(ALWAYS START ON COLUMN 1)                                        .
+     @ 12,27 TEXT LOGO1                                                      .
+          DDDDDD   BBBBBB    GGGGG                                           .
+         DDDDDDD  BBBBBBB  GGGGGGG                                           .
+        DD   DD  BB   BB  GG                                                 .
+       DD   DD  BBBBBB   GG GGGG                                             .
+      DD   DD  BB   BB  GG   GG                                              .
+     DDDDDDD  BBBBBBB  GGGGGGG                                               .
+     DDDDDD   BBBBBB    GGGGG                                                .
+     END TEXT                                                                .
+                                                                               .
+   RESULTS:                                                                  .
+                    222                                                        .
+     123............678..<--- COLUMNS                                          .
+    1                                                                          .
+    .                                                                          .
+   12                     DDDDDD   BBBBBB    GGGGG                           .
+   13                    DDDDDDD  BBBBBBB  GGGGGGG                           .
+   14                   DD   DD  BB   BB  GG                                 .
+   15                  DD   DD  BBBBBB   GG GGGG                             .
+   16                 DD   DD  BB   BB  GG   GG                              .
+   17                DDDDDDD  BBBBBBB  GGGGGGG                               .
+   18               DDDDDD   BBBBBB    GGGGG                                 .
+    .                                                                          .
+   24                                                                          .
+                    222                                                        .
+     123............678..<--- COLUMNS                                          .
+   20<--ROWS                                                                   .
+                                                                               .
+  DEFAULTS:                                                                  .
+     LABEL = Not used, referred to by command just preceding text.      99999999
+

@@ -1,0 +1,3033 @@
+         TITLE 'BINARY TREE TABLE MANAGER'
+*******************************************************
+*                   REFERENCES                        *
+*******************************************************
+*        MODULE - BINODE                              *
+*        SYSTEM - PC/370 CROSS ASSEMBLER              *
+*        AUTHOR - BERNABE LLOVERA                     *
+*        DATE   - OCTOBER 1995                        *
+*******************************************************
+*                                                     *
+*     PROGRAM ENTRY POINT: BINOD                      *
+*     OTHER ENTRIES:                                  *
+*     EXTERNAL REFERENCES:                            *
+*                                                     *
+*******************************************************
+*        PRINT NOGEN
+*
+BINOD    CSECT
+         ENTRY
+XXC      STM   R14,R12,12(R13) SAVE IN CALLERS SAVE AREA
+         LR    R12,R15         USE ENTRY ADDRESS
+         USING XXC,R12,R11
+         LA    R15,XXCSAV1     GET PROGRAMS SAVE AREA ADDR
+         ST    R13,4(R15)      SAVE CALLERS SAVE AREA ADDR
+         ST    R15,8(R13)      SAVE PROGRAMS SAVE AREA IN CALLERS AREA
+         LR    R13,R15         GET PROGRAMS SAVE AREA ADDR
+         L     R11,XXCSAV2     LOAD 2ND BASE REG
+         B     AROXXC          SKIP SAVE AREA FLD
+XXCSAV1  DS    18F             RETURN SAVE REGS AREA
+XXCSAV2  DC    A(XXC+4096)     2ND BASE REG ADDR
+         DC    CL12'<<BINOD>>' DUMP PROGRAM ID
+AROXXC   DS    0H
+*
+         L     R10,0(,R1)       GET PARAMETER ADDRESS
+         ST    R10,INPUTPAR     SAVE INPUT PARAMETERS ADDR
+         USING APPLPARM,R10     COMMON DBG PROCEDURE PARAMETER LIST
+*
+         TITLE 'TREE TABLE MANAGER MAIN LINE'
+***********************************************************************
+*         MAIN LINE PROGRAM
+***********************************************************************
+*         SVC   9                SHOW DEBUG SCREEN
+*         DC    C'BUG '          4 CHARS TO STAY ALIGNED
+***********************************************************************
+         BAL   R14,INITALW      DO ALWAYS INITIALIZATIONS
+         BAL   R14,VALKEYB      DO KEY-BOARD VALIDATION
+*
+         CLI   KEYRESPN,C'N'    AN EXIT (PF3) PROGRAM REQUEST ???
+         BE    EXITPROC         YES, GO PREFORM EXIT PROCEDURE
+         CLI   FIRSTIME,C' '    IS THIS THE FIRST TIME THRU ???
+         BNE   NEXTIMES         NO, DO NEXT TIMES PROCEDURE
+         BAL   R14,INIT1ST      DO 1ST TIME THRU INITIALIZATIONS
+         BAL   R14,OPENFIL      OPEN FILES & SET 1ST TIME SWITCH
+***********************************************************************
+         DC    X'00'            CLAVO CLAVO CLAVO
+***********************************************************************
+         B     EXITPROC         PERFORM EXIT ROUTINE
+NEXTIMES DS    0H
+         CLI   INPUTKEY,X'F1'   HELP REQUEST ???
+         BNE   NOHELP           NO, SKIP HELP PROCESS
+*        CALL  SHOWLIST,HELPLCNT,SCRMAP,SCRMAPE,HELPLIST,HELPEND
+         LA    R1,HELPARM
+         L     R15,=A(SHOW)     LIST) SCREEN LIST PROCESSOR
+         BALR  R14,R15          LINK TO DBG ON BARE FOOT
+         B     EXITPROC         PERFORM EXIT ROUTINE
+NOHELP   DS    0H
+*        MVC   COMMDAT,=C'LIST'
+*        MVC   NODEDAT,=C'001'
+         BAL   R14,KEYDATA      VALIDATE AND PERFORM COMMADS
+         LA    R14,COMMLOC
+*        XDUMP 0(R14),100
+*        CLI   COMMVAL,X'01'    VALID KEY DATA ???
+         BNE   EXITPROC         NO, SKIP DATA LOAD & PRINT
+*
+***********************************************************************
+*         LIST COMMAND
+***********************************************************************
+         CLC   =C'LIST',COMMDAT LIST COMMAND?
+         BNE   CHKNEXT1         NO, CHECK REST
+         BAL   R14,REPORTV      PRINT VERTICAL REPORT
+         MVC   CURROW(4),=C'0538'   CURSOR INSERTION PLACE
+         B     EXITPROC         GO BACK
+*
+***********************************************************************
+*         END COMMAND
+***********************************************************************
+CHKNEXT1 DS    0H
+         CLC   =C'END',COMMDAT  END COMMAND?
+         BNE   CHKNEXT2         NO, CHECK REST
+         MVC   PROSWRK(3),=C'EXT' 'END'=EXIT 'EXT'=QUIT '   '=RETURN
+         MVI   KEYRESPN,C'N'    KEY RESPONSE (EXIT)
+         B     EXITPROC         GO BACK
+*
+***********************************************************************
+*         INCLUDE COMMAND
+***********************************************************************
+CHKNEXT2 DS    0H
+         CLC   =C'INCL',COMMDAT INCLUDE NODE COMMAND?
+         BNE   CHKNEXT3         NO, CHECK REST
+         CLC   NODENUM,=F'0'    ANY NODE NUMBER ???
+         BE    EXITPROC         YES, GO BACK (JUST IN CASE)
+         MVC   CURROW(4),=C'0551'   CURSOR INSERTION PLACE
+         MVC   KEYVAL,NODENUM   SAVE KEY VALUE
+         L     R1,TREEORGN      TREE START ADDRESS
+         BAL   R14,FINDNODE     SEARCH FOR NODE
+         LTR   R15,R15          IS NODE ON TREE TABLE?
+         BNZ   GOODINCL         NO, GOOD TO INCLUDE
+         MVI   MSGWORK,C' '     WHIPE MESSAGE WORK AREA OUT
+         MVC   MSGWORK+1(L'MSGWORK-1),MSGWORK
+         MVC   MSGWORK(23),=C'     NODE ALREADY EXIST' MESSAGE
+         B     EXITPROC         GO BACK
+GOODINCL DS    0H
+         LA    R7,NODENUM       GET NODE NUMBER FOR INSERT ROUT
+         BAL   R14,INSERT       INSERT OR COUNT THIS NODE KEY
+         BAL   R14,REPORTV      PRINT VERTIRCAL REPORT
+         B     EXITPROC         GO BACK
+*
+***********************************************************************
+*         DELETE COMMAND
+***********************************************************************
+CHKNEXT3 DS    0H
+         CLC   =C'DELE',COMMDAT DELETE NODE COMMAND?
+         BNE   CHKNEXT4         NO, CHECK REST
+         CLC   NODENUM,=F'0'    ANY NODE NUMBER ???
+         BE    EXITPROC         YES, GO BACK (JUST IN CASE)
+         MVC   CURROW(4),=C'0551'   CURSOR INSERTION PLACE
+         MVC   KEYVAL,NODENUM   SAVE KEY VALUE
+         L     R1,TREEORGN      TREE START ADDRESS
+         BAL   R14,FINDNODE     SEARCH FOR NODE
+         LTR   R15,R15          IS NODE ON TREE TABLE?
+         BZ    GOODDELE         YES, GOOD TO DELETE
+         MVI   MSGWORK,C' '     WHIPE MESSAGE WORK AREA OUT
+         MVC   MSGWORK+1(L'MSGWORK-1),MSGWORK
+         MVC   MSGWORK(23),=C'     NODE DOESN''T EXIST' MESSAGE
+         B     EXITPROC         GO BACK
+GOODDELE DS    0H
+         LA    R7,NODENUM       GET NODE NUMBER FOR INSERT ROUT
+         BAL   R14,DELETEK      DELETE THIS NODE KEY
+         BAL   R14,REPORTV      PRINT VERTIRCAL REPORT
+         B     EXITPROC         GO BACK
+*
+***********************************************************************
+*         SAMPLE COMMAND
+***********************************************************************
+CHKNEXT4 DS    0H
+         CLC   =C'SAMP',COMMDAT LOAD SAMPLE TREE TABLE COMMAND ???
+         BNE   CHKNEXT5         NO, CHECK REST
+         BAL   R14,ERASTREE     ERASE BINARY TREE (FROM 1ST PARENT)
+         BAL   R14,SAMPLOAD     LOAD SAMPLE BINARY TREE (JUST ONCE)
+         BAL   R14,REPORTV      PRINT VERTICAL REPORT
+         MVC   CURROW(4),=C'0538'   CURSOR INSERTION PLACE
+         B     EXITPROC         GO BACK
+*
+***********************************************************************
+*         ERASE COMMAND
+***********************************************************************
+CHKNEXT5 DS    0H
+         CLC   =C'ERAS',COMMDAT ERASE TREE TABLE COMMAND ???
+         BNE   CHKNEXT6         NO, CHECK REST
+         BAL   R14,ERASTREE     ERASE BINARY TREE (FROM 1ST PARENT)
+         BAL   R14,REPORTV      PRINT VERTICAL REPORT
+         MVC   CURROW(4),=C'0538'   CURSOR INSERTION PLACE
+         B     EXITPROC         GO BACK
+*
+***********************************************************************
+*         ASCENDING COMMAND
+***********************************************************************
+CHKNEXT6 DS    0H
+         CLC   =C'ASCE',COMMDAT ASCENDING ORDER COMMAND ???
+         BNE   CHKNEXT7         NO, CHECK REST
+         MVI   ASCEDESC,C' '    ESTABLISH ASCENDING ORDER LIST
+         BAL   R14,REPORTV      PRINT VERTICAL REPORT
+         MVC   CURROW(4),=C'0538'   CURSOR INSERTION PLACE
+         B     EXITPROC         GO BACK
+*
+***********************************************************************
+*         DESCENDING COMMAND
+***********************************************************************
+CHKNEXT7 DS    0H
+         CLC   =C'DESC',COMMDAT DESCENDING ORDER COMMAND ???
+         BNE   CHKNEXT8         NO, CHECK REST
+         MVI   ASCEDESC,C'D'    ESTABLISH DESCENDING ORDER LIST
+         BAL   R14,REPORTV      PRINT VERTICAL REPORT
+         MVC   CURROW(4),=C'0538'   CURSOR INSERTION PLACE
+         B     EXITPROC         GO BACK
+*
+***********************************************************************
+*         BALANCE COMMAND
+***********************************************************************
+CHKNEXT8 DS    0H
+         CLC   =C'BALA',COMMDAT TREE BALANCE COMMAND ???
+         BNE   CHKNEXT9         NO, CHECK REST
+*
+         MVC   DEBNAME,=CL8'BALANCE' GETMAINED NAME FOR DEBUGGING
+         MVC   SAVINPN,=F'0'    INPUT NODE POINTER SAVE AREA
+         MVC   SAVOUTN,=F'0'    OUTPUT NODE POINTER SAVE AREA
+         MVC   DIVISOR,=F'0'    INITIALIZE MODULA DIVISOR
+         MVC   LASTMOD,=F'0'    INITIALIZE LAST MODULA
+         MVC   MODULA,=F'0'     INITIALIZE MODULA
+         BAL   R14,MAKENODE     GENERATE 1ST NODE FOR NEW TREE
+         ST    R1,DATAORGN      SAVE NEW TREE ORIGIN
+         L     R5,TREEORGN      GET OLD TREE ORIGIN
+         BAL   R14,COUNT        GO COUNT HOW MANY NODES WE GOT
+         L     R1,TREEORGN      GET OLD TREE ORIGIN
+         ST    R1,SAVINPN       SAVE INPUT NODE PRT
+         MVC   MODULA,NODECOUN  GET NODES QUANTITY
+*
+DIVISLP  DS    0H
+         L     R2,MODULA        GET MODULA
+         SR    R3,R3            RESET ODD COUPLE
+         SRDL  R2,1             DIVIDE BY MULTIPLES OF TWO
+         ST    R2,LASTMOD       SAVE LAST MODULA INTIGER
+         LTR   R3,R3            ANY FRACTIONS ???
+         BZ    NOFRACTI         NO, SKIP ADDING ONE
+         LA    R2,1(,R2)        ADD ONE FOR FRACTION IN R5
+NOFRACTI DS    0H
+         ST    R2,MODULA        SAVE MODULA FOR NEXT TIME
+*
+SKIPMODU DS    0H
+         L     R1,SAVINPN       GET INPUT NODE PRT
+*         R1=START FROM NODE IN R1, R2=SKIP R2 AMOUNT OF NODES
+         BAL   R14,SKIPFEW      SKIP R2 RECS STARTING FROM R1
+         LTR   R15,R15          ANY LUCK ???
+         BZ    OTHMODU          DO A DIFERENT MODULA
+         ST    R1,SAVINPN       SAVE INPUT NODE PRT
+         CLC   TYPLOC-TYPENDE(4,R1),=F'0' BEEN MAKED ALREADY ???
+         BNE   NOINSERT         YES, SO DON'T INSERT AGAIN
+         MVC   TYPLOC-TYPENDE(4,R1),=F'1' GOOD TO MARK NOW
+*
+         MVC   NODENUM,TYPKEY-TYPENDE(R1) SAVE NODE KEY VALUE
+         MVC   KEYVAL,TYPKEY-TYPENDE(R1) SAVE NODE KEY VALUE
+         CLC   KEYVAL,=F'0'     KEY VALUE EQUAL ZEOR ???
+         BE    NOINSERT         YES, SKIP THIS ONE
+         L     R1,DATAORGN      GET NEW TREE ORIGIN
+*
+GOODTODO DS    0H
+         LA    R7,NODENUM       GET NODE NUMBER FOR INSERT ROUT
+         BAL   R14,INSERT       INSERT OR COUNT THIS NODE KEY
+*
+NOINSERT DS    0H
+         CLC   KEYVAL,HIESTKEY  ENT OF TREE TABLE REACHED ???
+         BL    SKIPMODU         NO, GO SKIP ANOTHER MODULA
+OTHMODU  DS    0H
+         OC    LASTMOD,LASTMOD  IS LAST MODULA AN INTIGER ???
+         BZ    ENDBALAN         NO, FINISH BALANCE
+         B     DIVISLP          SET DIVISOR LOOP
+*
+ENDBALAN DS    0H
+         MVC   TREEORGN,DATAORGN  SAVE NEW TREE ORIGIN
+         BAL   R14,REPORTV      PRINT VERTICAL REPORT
+         MVC   CURROW(4),=C'0538'   CURSOR INSERTION PLACE
+         B     EXITPROC         GO BACK
+CHKNEXT9 DS    0H
+*
+***********************************************************************
+*         COMMAND INACTIVE PROCEDURE
+***********************************************************************
+INACTIVE DS    0H
+         MVI   MSGWORK,C' '      WHIPE MESSAGE WORK AREA OUT
+         MVC   MSGWORK+1(L'MSGWORK-1),MSGWORK
+         MVC   MSGWORK(23),=C'       INACTIVE COMMAND'
+*
+***********************************************************************
+*         EXIT PROCEDURE
+***********************************************************************
+EXITPROC DS    0H
+         MVC   NODEOUT,=C'000'  RESET NODE NUMBER
+         MVC   NODEDAT,=C'000'  RESET NODE NUMBER
+         MVC   NODENUM,=F'0'    RESET NODE NUMBER
+         MVI   COMMVAL,X'00'    VOID USED KEY DATA
+         L     R10,INPUTPAR     GET INPUT PARAMETERS ADDR BACK
+         BAL   R14,EXITROUT     DO EXIT ROUTINE
+*
+*        ABTERM 222
+         L     R15,RETCODE      INITIALIZE RETURN CODE
+*        L     R13,SAVEAREA+4   GET CALLER'S SAVE AREA
+         EXIT  SAVE=YES,RC=15
+*        RETURN (14,12),RC=(15) GO BACK
+*
+         TITLE 'TREE TABLE MANAGER SUBROUTINES'
+***********************************************************************
+*         INITIALIZE ON EVERY ENTRANCE TO THE PROGRAM
+***********************************************************************
+INITALW  DS    0H
+         ST    R14,INITASAV      SAVE RET ADDR
+*
+         XC    RETCODE,RETCODE  INITIALIZE RETURN CODE
+         MVC   PROSWRK(3),=CL3' '  CLEAR PROCESSING SWITCH WORK FIELD
+         MVI   SCRMAPE,X'00'    SCREEN MAP DELIMITER ADDRESS
+         MVC   BOXTR(8),=C'05012480'  BOX COORDINATES
+         MVC   CURROW(4),=C'0538'   CURSOR INSERTION PLACE
+*
+         L     R14,INITASAV     GET RET ADDR
+         BR    R14
+*
+***********************************************************************
+*          KEYBOARD VALIDATION
+*          PF3 = EXIT PROGRAM IMMEDIATELY
+***********************************************************************
+VALKEYB  DS    0H
+         ST    R14,VALKSAV       SAVE RET ADDR
+*
+         MVI   KEYRESPN,C' '     KEY RESPONSE (NO-EXIT)
+         CLI   INPUTKEY,X'F3'    INPUT KEY IS PF3 ???
+         BNE   VALKEX            NO, IGNORE OTHER KEYS
+*        CLI   FIRSTIME,C' '     IS THIS THE FIRST TIME THRU ???
+*        BE    NEXTIME           YES, DO OTHER TIMES PROCEDURE
+*        CLI   KEYTIME,C' '      ARE WE AT RECORD-KEY ENTRY TIME ???
+*        BNE   OTHTIMES          NO, DO NEXT TIMES PROCEDURE
+NEXTIME  DS    0H
+         MVC   PROSWRK(3),=C'EXT'   'END'=EXIT 'EXT'=QUIT '   '=RETURN
+         MVI   KEYRESPN,C'N'     KEY RESPONSE (EXIT)
+         B     VALKEX            EXIT ROUTINE
+OTHTIMES DS    0H
+         MVI   KEYTIME,C'N'      WE ARE PASSED RECORD-KEY ENTRY TIME
+*
+VALKEX   DS    0H
+         L     R14,VALKSAV       GET RET ADDR
+         BR    R14
+*
+***********************************************************************
+*         IITIALIZE FIRST TIME ROUTINE
+***********************************************************************
+INIT1ST  DS    0H
+         ST    R14,INIT1SAV      SAVE RET ADDR
+*
+         CLI   FIRSTNOD,C' '    HAS TABLE BEEN LOADED ALREADY ???
+         BNE   NODEDONE         YES, SKIP LOADING IT
+         BAL   R14,MAKENODE     GENERATE 1ST TREE NODE
+         ST    R1,TREEORGN      SAVE TREE ORIGIN
+NODEDONE DS    0H
+         MVI   FIRSTNOD,C'N'    SHOW TABLE LOADED ALREADY
+*
+         XC    RECDCNT,RECDCNT  INITIALIZE NODE ACCESS CNT
+         MVI   KEYTIME,C' '      RECORD-KEY ENTRY TIME
+         MVC   BOXTR(8),=C'05012480'  BOX COORDINATES
+         MVC   CURROW(4),=C'0538'   CURSOR INSERTION PLACE
+*
+         LA    R14,SCRMAP+480    GET LINE 6 ADDRESS
+         LA    R1,19             GET LOOP COUNT (18 LINES LEFT)
+ERALP    DS    0H
+         MVC   0(80,R14),=CL80' '  MOVE SPACES TO SCREEN LINE
+         LA    R14,80(,R14)      BUMP SCREEN BUFFER ADDR
+         BCT   R1,ERALP          LOOP
+*
+         MVI   TITLATT1,21       BOX TITL ATTR (PROT ALPH HI-INT)
+         MVI   TITLATT2,17       BOX TITL ATTR (PROT ALPH NORM)
+*
+         MVI   CMDATT1,17        COMMAND TITL ATTR (PROT ALPH NORM)
+         MVI   CMDATT2,01        COMMAND DATA ATTR (UNPR ALPH NORM)
+*        MVI   CMDATT3,17        COMMAND TITL ATTR (PROT ALPH NORM)
+         MVI   CMDATT3,17        COMMAND TITL ATTR (PROT AUTO NORM)
+*
+         MVI   CODATT1,17        CODE TITL ATTR (PROT ALPH NORM)
+         MVI   CODATT2,09        CODE DATA ATTR (UNPR NUM NORM)
+         MVI   CODATT3,21        CODE TITL ATTR (PROT ALPH HI-INT)
+*
+         MVI   MSGWORK,C' '      WHIPE MESSAGE WORK AREA OUT
+         MVC   MSGWORK+1(L'MSGWORK-1),MSGWORK
+         MVC   MSGWORK(23),=C'       COMMAND|PF3=EXIT'
+*
+         MVC   COMMDAT,=CL4' '   ERASE COMMANDS DATA
+         MVC   NODEDAT,=CL3' '   ERASE NODE NUMBER DATA
+*
+         L     R14,INIT1SAV      GET RET ADDR
+         BR    R14
+*
+***********************************************************************
+*         OPEN FILES ROUTINE
+***********************************************************************
+OPENFIL  DS    0H
+         ST    R14,OPENSAV      SAVE RET ADDR
+         MVI   FIRSTIME,C'N'    FIRST TIME THRU PASSED
+         L     R14,OPENSAV      GET RET ADDR
+         BR    R14
+*
+***********************************************************************
+*         CLOSE FILES ROUTINE
+***********************************************************************
+CLOSFIL  DS    0H
+         ST    R14,CLOSSAV      SAVE RET ADDR
+         MVI   FIRSTIME,C' '    FIRST TIME THRU PASSED COMMING SOON
+         L     R14,CLOSSAV      GET RET ADDR
+         BR    R14
+*
+***********************************************************************
+*         VALIDATE KEY DATA
+***********************************************************************
+KEYDATA  DS    0H
+         ST    R14,KEYDSAV       SAVE RET ADDR
+*
+         MVC   CURROW(4),=C'0538'   CURSOR INSERTION PLACE
+         MVI   MSGWORK,C' '     WHIPE MESSAGE WORK AREA OUT
+         MVC   MSGWORK+1(L'MSGWORK-1),MSGWORK
+         MVC   MSGWORK(23),=C'           USER DATA OK' MESSAGE
+         CLC   COMMDAT(4),=CL4' '   ANY COMMANDS FROM USER?
+         BE    KEYNOCM1          NO COMMAND RECEIVED
+*        CALL  CASE,UPPER,COMMDAT,COMMLEN  ~~~ CONVERT TO UPPER CASE
+         LA    R1,CASEPARM
+         L     R15,=A(CASE)     CASE CONVERTER
+         BALR  R14,R15          LINK TO DBG ON BARE FOOT
+*
+         L     R14,=A(COMMTAB)  GET COMMAND TABLE ADDR
+KEYCMLP  DS    0H
+         CLC   0(4,R14),=CL4' ' COMMAND TABLE END REACHED ???
+         BE    KEYNOCM1         YES, COMMAND NOT VALID
+         CLC   0(4,R14),COMMDAT OUR COMMAND?
+         BE    OKCOMM           YES, COMMAND OK
+         LA    R14,4(,R14)      BUMP TABLE ADDR
+         B     KEYCMLP          LOOP
+*
+OKCOMM   DS    0H
+         CLC   COMMDAT,=C'INCL' IS IT AN INCLUDE COMMNAD ???
+         BE    CHECKNOD         YES, GO CHECK NODE NUMBER
+         CLC   COMMDAT,=C'DELE' IS IT AN DELETE COMMNAD ???
+         BNE   STILLOK          NO, STILL OK
+CHECKNOD DS    0H
+*        CALL  VALNUM,NODEDAT,NODEOUT,NUMVPARM
+         LA    R1,NUMPARM       NUM VAL PAR LIST
+         L     R15,=A(VALNUM)   NUMERIC VALIDATOR
+         BALR  R14,R15          LINK TO DBG ON BARE FOOT
+         CLI   NUMRESUL,C'S'    WAS NUMERIC VALUE ACCEPTED ???
+         BE    STILLOK1         YES, IS STILL OK
+         CLC   NODEOUT,=C'000'  WAS NUMERIC VALUE ZEROES ???
+         BNE   STILLOK1         NO, IS STILL OK
+         MVI   MSGWORK,C' '     WHIPE MESSAGE WORK AREA OUT
+         MVC   MSGWORK+1(L'MSGWORK-1),MSGWORK
+         MVC   MSGWORK(23),=C'           INVALID NODE' MESSAGE
+         MVC   CURROW(4),=C'0551'   CURSOR INSERTION PLACE
+         B     KEYNOCM2         INVALID NODE NUMBER
+STILLOK1 DS    0H
+         MVC   NODEDAT,NODEOUT  GET VALIDATED NODE NUMBER
+         PACK  DOBLE1(8),NODEOUT(3) CONVERT NODE NUMBER TO
+         CVB   R14,DOBLE1       BINARY TO STORE IT IN
+         ST    R14,NODENUM      BINARY FORM TO BE USED BY INSERT ROUT
+*
+STILLOK  DS    0H
+         MVI   CMDATT1,17       COMMAND TITL ATTR (PROT ALPH NORM)
+         MVI   CMDATT2,01       COMMAND DATA ATTR (UNPR ALPH NORM)
+*        MVI   CODATT1,17       CODE TITL ATTR (PROT ALPH NORM)
+*        MVI   CODATT2,09       CODE DATA ATTR (UNPR NUM NORM)
+         MVI   COMMVAL,X'01'    SHOW VALID KEY DATA
+         MVI   KEYTIME,C'N'     NOT RECORD-KEY ENTRY TIME
+         B     KEYDEX           EXIT
+KEYNOCM1 DS    0H
+         MVI   MSGWORK,C' '     WHIPE MESSAGE WORK AREA OUT
+         MVC   MSGWORK+1(L'MSGWORK-1),MSGWORK
+         MVC   MSGWORK(23),=C'        INVALID COMMAND' MESSAGE
+         MVC   CURROW(4),=C'0538'   CURSOR INSERTION PLACE
+KEYNOCM2 DS    0H
+         MVI   COMMVAL,C' '      SHOW INVALID KEY DATA
+         MVI   KEYTIME,C' '      SHOW RECORD-KEY ENTRY TIME
+         MVI   CMDATT1,21        COMMAND TITL ATTR (PROT ALPH HI-INT)
+         MVI   CMDATT2,05        COMMAND DATA ATTR (UNPR ALPH HI-INT)
+*        MVI   CODATT1,21        CODE TITL ATTR (PROT ALPH HI-INT)
+*        MVI   CODATT2,13        CODE DATA ATTR (UNPR NUM HI-INT)
+*
+KEYDEX   DS    0H
+         L     R14,KEYDSAV       GET RET ADDR
+         BR    R14
+*
+***********************************************************************
+*         EXIT PROGRAM ROUTINE
+***********************************************************************
+EXITROUT DS    0H
+         ST    R14,EXITSAV      SAVE RET ADDR
+*        CALL  CENTER,MSGWORK,MSGLEN   CENTER DATA ON MESSAGE FLD
+         MVC   MSGDAT,MSGWORK   MOVE MESSAGE WORK AREA TO SCREEN
+         MVC   PROSWTCH(3),PROSWRK MOVE WORK PROCESSING SWITCH
+         CLC   PROSWTCH(3),=C'EXT'  AN IMMEDIATE EXIT REQUEST ???
+         BE    RETOCALR         YES, FINISH UP & GO BACK WITH NO RET
+         BAL   R14,USCRMAP      SEND DATA & POINTERS TO RECEIVE
+RETOCALR DS    0H
+         CLI   KEYRESPN,C'N'    AN EXIT (PF3) PROGRAM REQUEST ???
+         BNE   EXITEX           NO, EXIT
+         CLI   FIRSTIME,C'N'    AND NOT THE FIRST TIME THRU ???
+         BNE   EXITEX           NO, EXIT
+         BAL   R14,CLOSFIL      (KEYRESPN .AND. .NOT. FIRSTIME) DO THIS
+*
+EXITEX   DS    0H
+         L     R14,EXITSAV      GET RET ADDR
+         BR    R14
+*
+***********************************************************************
+*         SEND USER SCREEN MAP TO TERMINAL
+***********************************************************************
+USCRMAP  DS    0H
+         ST    R14,USCRSAV      SAVE RET ADDR
+*        CALL  DBG,(SCRMAP,SCRMAPE,OUTPARMS,COMMLOC,COMMDAT,         *
+*              NODELOC,NODEDAT,DELIADR)
+         XC    NODEDAT,NODEDAT    ERASE NODE NUMBER
+         LA    R1,DBGPARM       SCREEN BUFFER PROCESSOR PARAMETER LIST
+         L     R15,=V(CICS)     SCREEN BUFFER PROCESSOR
+         BALR  R14,R15          LINK TO DBG ON BARE FOOT
+         L     R14,USCRSAV      GET RET ADDR
+         BR    R14
+*
+***********************************************************************
+*        ERASE TREE TABLE ROUTINE (DISCONNECT GRAND PARENT TO REST)
+***********************************************************************
+ERASTREE DS    0H
+         L     R1,TREEORGN             GET TREE TOP
+         XC    TYPHIGH-TYPENDE(4,R1),TYPHIGH-TYPENDE(R1) HI SON
+         XC    TYPLOW-TYPENDE(4,R1),TYPLOW-TYPENDE(R1) LO SON
+         BR    R14
+*
+***********************************************************************
+*         TREE SAMPLE DATA LOAD ROUTINE
+***********************************************************************
+SAMPLOAD DS    0H
+         ST    R14,DATASAV      SAVE RET ADDR
+*        CLI   TABLELD,C' '     HAS TABLE BEEN LOADED ALREADY ???
+*        BNE   TABLAST          YES, SKIP LOADING IT
+*
+*        BAL   R14,MAKENODE     GENERATE 1ST TREE NODE
+         LA    R7,INTABLE       GET INPUT TABLE ADDRESS
+ISERTLP  DS    0H
+         CLC   0(4,R7),=F'0'    END OF TABLE?
+         BE    TABLAST          YES, NO MORE
+         L     R1,TREEORGN      SAVE TREE ORIGIN
+         BAL   R14,INSERT       INSERT OR COUNT THIS NODE KEY
+         LA    R7,4(R7)         GET NEXT INPUT KEY
+         B     ISERTLP          GENERAL INSERT LOOP
+TABLAST  DS    0H
+*        MVI   TABLELD,C'N'     SHOW TABLE LOADED ALREADY
+*
+*        BAL   R14,REPORTA      PRINT ASCENDING REPORT
+*        BAL   R14,REPORTV      PRINT VERTIRCAL REPORT
+*
+         L     R14,DATASAV      GET RET ADDR
+         BR    R14
+         DROP  R10
+*
+         TITLE 'TREE TABLE MANAGER ROUTINES'
+***********************************************************************
+* INSERT NODE ROUTINE
+*   ON ENTRY = R1 = NODE ADDR
+*            = R7 = NODE KEY ADDR
+*   ON EXIT  = R1 = NEW OR OLD NODE ADDR
+***********************************************************************
+INSERT   DS    0H
+         ST    R14,INSESAV      SAVE RET ADDR
+         LTR   R1,R1            ANY TREE ORIGIN PARM ???
+         BNZ   INSENTOR         YES, SKIP NO TREE ORIGIN TO LOAD
+         L     R1,TREEORGN      TREE START ADDRESS
+INSENTOR DS    0H
+         USING TYPENDE,R1       TELL ASM
+*
+PROGLOOP DS    0H
+         L     R8,0(,R7)        GET KEY VALUE FROM TABLE
+         ST    R8,KEYVAL        SAVE INPUT KEY VALUE
+*
+         BAL   R14,FINDNODE     SEARCH FOR NODE
+         LTR   R15,R15          IS NODE ON TREE TABLE?
+         BZ    NODEOK           YES, GO ACCUMULATE TYPE COUNT
+         LR    R4,R1            NO, SAVE CLOSER NODE PTR FOUND
+         L     R8,TYPLOC-TYPENDE(,R1) GET RELATIVE PRINT LOCATION
+         USING TYPENDE,R4       MAP IT WITH DSECT
+         BAL   R14,MAKENODE     BUILD NEW NODE
+*
+         CLC   KEYVAL,TYPKEY    NEW KEY GRATER THAN CURRENT?
+         BNL   ISRIGHT          YES, INSERT NEW NODE ON RIGHT BRANCH
+         S     R8,=F'6'         SHOW NEGATIVE RELATION TO PARENT
+         ST    R8,TYPLOC-TYPENDE(,R1) SET RELATIVE PRINT LOCATION
+         ST    R1,TYPLOW        NO, INSERT NEW NODE ON LEFT BRANCH
+         B     FILLREST         FILL REST OF NODE
+ISRIGHT  DS    0H
+         A     R8,=F'6'         SHOW POSITIVE RELATION TO PARENT
+         ST    R8,TYPLOC-TYPENDE(,R1) SET RELATIVE PRINT LOCATION
+         ST    R1,TYPHIGH       PUT NEW NODE PTR ON RIGHT BRANCH
+*
+FILLREST DS    0H
+         MVC   TYPKEY-TYPENDE(4,R1),KEYVAL  STORE NODE KEY
+         ST    R4,TYPTOP-TYPENDE(,R1)       STORE PARENT NODE POINTER
+*
+NODEOK   DS    0H
+         BAL   R14,ACCUMND      ACCUMULATE NODE TYPE COUNT
+         L     R14,INSESAV      GET RET ADDR
+         BR    R14
+*
+***********************************************************************
+* NODE DELETION BY KEY
+*   ON ENTRY = R7 = NODE KEY ADDR
+***********************************************************************
+DELETEK  DS    0H
+         ST    R14,DELEKSAV     SAVE RET ADDR
+*
+********* FIND NODE TO DELETE
+         MVC   KEYVAL,0(R7)     SAVE KEY VALUE
+*        MVC   KEYVAL,=F'35'    SAVE INPUT KEY VALUE
+         L     R1,TREEORGN      TREE START ADDRESS
+         BAL   R14,FINDNODE     SEARCH FOR NODE
+         LTR   R15,R15          IS NODE ON TREE TABLE ???
+         BNZ   DELELAEX         NO, SKIP PRINT
+         ST    R1,DELEND        STORE DELETING NODE ADDR
+*
+********* PRINT DELETION INDICATION
+*        MVI   LINE,C'1'        SKIP PAGE
+*        MVC   LINE+27(21),=C'NODE DELETION PROCESS'
+*        BAL   R14,PRINTIT      JUST SKIP 3 LINES
+*        MVI   LINE,C'-'        SPACE 3 LINES
+*        LA    R9,1             PRINT LINE OFFSET
+*        L     R6,DELEND        GET NODE ADDR INTO DSECT REG
+*        BAL   R14,PRINTND1     PRINT NODE
+*
+********* FIND HI SON & LO SON OF NODE TO DELETE
+         L     R1,DELEND         GET DELETABLE NODE ADDR
+         L     R15,TYPHIGH-TYPENDE(,R1)  SON NODE (HI BRANCH)
+         ST    R15,HISONND       STORE HI SON NODE ADDR
+         L     R15,TYPLOW-TYPENDE(,R1)  SON NODE (LO BRANCH)
+         ST    R15,LOSONND       STORE LO SON NODE ADDR
+*
+********* FIND TOP OF NODE TO DELETE
+         L     R1,DELEND        GET DELETABLE NODE ADDR
+         L     R1,TYPTOP-TYPENDE(,R1)  TAKE PARENT (TOP BRANCH)
+         ST    R1,PAREND        STORE PARENT NODE ADDR
+*
+********* FIND OUT IF DELETING NODE HAS ANY CHILDREN
+         L     R1,DELEND        GET DELETABLE NODE ADDR
+         CLC   TYPHIGH-TYPENDE(4,R1),=F'0' ANY HI SON ???
+         BNE   HASHI            YES, SKIP LOW SON TEST
+         CLC   TYPLOW-TYPENDE(4,R1),=F'0' ANY LO SON ???
+         BNE   HASLO            YES, GO ON
+*
+********* NO CHILDREN, IF A PARENT'S LOW OR HIGH, DELETE IT
+         SR    R2,R2            GET A ZERO
+         L     R1,PAREND        GET PARENT NODE ADDR
+         L     R15,DELEND       LOAD DELETABLE NODE ADDR
+         C     R15,TYPHIGH-TYPENDE(R1) DELETING THE PARENT HI NODE ???
+         BE    ITSHI            YES, FIND NEXT ASCENDING NODE TO PARENT
+         ST    R2,TYPLOW-TYPENDE(R1) ** DELETE LOW SON **
+         B     DELELAEX         EXIT THE WHOLE THING
+ITSHI    DS    0H
+         ST    R2,TYPHIGH-TYPENDE(R1) ** DELETE HI SON **
+         B     DELELAEX         EXIT THE WHOLE THING
+*
+HASLO    DS    0H
+*
+********* FIND NODE TYPE (LO/HI) & CONNECT DELETED LO TO PARENT
+         L     R2,DELEND        GET DELETABLE NODE ADDR
+         L     R2,TYPLOW-TYPENDE(R2) GET DELETABLE'S LOW SON
+         L     R1,PAREND        GET PARENT NODE ADDR
+         L     R15,DELEND       LOAD DELETABLE NODE ADDR
+         C     R15,TYPHIGH-TYPENDE(R1) DELETING THE PARENT HI NODE ???
+         BE    TOPARHI          YES, MOVE DEL'S LOW TO PARENT'S HI SON
+         ST    R2,TYPLOW-TYPENDE(R1) ** DELETED-LOW -> PARENT-LOW **
+         ST    R1,TYPTOP-TYPENDE(R2) ** PARENT -> DELETED-LOW-TOP **
+         B     DELELAEX         EXIT THE WHOLE THING
+TOPARHI  DS    0H
+         ST    R2,TYPHIGH-TYPENDE(R1) ** DELETED-LOW -> PARENT-HIGH **
+         ST    R1,TYPTOP-TYPENDE(R2)  ** PARENT -> DELETED-LOW-TOP  **
+         B     DELELAEX         EXIT THE WHOLE THING
+*
+HASHI    DS    0H
+         CLC   TYPLOW-TYPENDE(4,R1),=F'0' ANY LO SON ???
+         BNE   HASLOGON         YES, GO ON
+*
+********* FIND NODE TYPE (LO/HI) & CONNECT DELETED LO TO PARENT
+         L     R2,DELEND        GET DELETABLE NODE ADDR
+         L     R2,TYPHIGH-TYPENDE(R2) GET DELETABLE'S HI SON
+         L     R1,PAREND        GET PARENT NODE ADDR
+         L     R15,DELEND       LOAD DELETABLE NODE ADDR
+         C     R15,TYPHIGH-TYPENDE(R1) DELETING THE PARENT HI NODE ???
+         BE    TOPARHI1         YES, MOVE DEL'S LOW TO PARENT'S HI SON
+         ST    R2,TYPLOW-TYPENDE(R1)  ** DELETED-LOW -> PARENT-LOW **
+         ST    R1,TYPTOP-TYPENDE(R2)  ** PARENT -> DELETED-LOW-TOP **
+         B     DELELAEX         EXIT THE WHOLE THING
+TOPARHI1 DS    0H
+         ST    R2,TYPHIGH-TYPENDE(R1) ** DELETED-LOW -> PARENT-HI  **
+         ST    R1,TYPTOP-TYPENDE(R2)  ** PARENT -> DELETED-LOW-TOP **
+         B     DELELAEX         EXIT THE WHOLE THING
+*
+HASLOGON DS    0H
+*
+********* FIND OUT IF NODE TO DELETE IS A PARENT'S LOW OR HIGH SON
+         L     R1,PAREND        GET PARENT NODE ADDR
+         L     R15,DELEND       LOAD DELETABLE NODE ADDR
+         C     R15,TYPHIGH-TYPENDE(R1) DELETING THE PARENT HI NODE ???
+         BE    NEXTOTOP         YES, FIND NEXT ASCENDING NODE TO PARENT
+         L     R1,DELEND        GET DELETING NODE ADDR
+         B     NEXTOANY         FIND NEXT
+NEXTOTOP DS    0H
+         L     R1,PAREND        GET PARENT NODE ADDR
+*
+NEXTOANY DS    0H
+*
+********* FIND NEXT ASCENDING NODE TO (HIGH-SON=PARENT LOW-SON=DELETED)
+         BAL   R14,NEXT         FIND NEXT ASCENDING NODE IN BRANCH
+         ST    R1,NEXTND        SAVE NEXT (RELOCATING) NODE ADDR
+*
+********* ERASE THE PLACE WHERE THE NEXT WAS FOUND
+         SR    R2,R2            GET A ZERO
+         L     R1,NEXTND        GET RELOCATING NODE ADDR
+         L     R15,TYPTOP-TYPENDE(R1) GET TOP OF RELOCATING NODE
+         C     R1,TYPHIGH-TYPENDE(R15) IS THE NEXT A HI SON ???
+         BNE   ERALOW           NO, ERASE THE PARENT'S LOW SON
+         LTR   R15,R15          ANY VALID NODE ???
+         BZ    LASTHI           NO, SKIP UPDATING
+         ST    R2,TYPHIGH-TYPENDE(R15) ** ERASE PARENT'S HI SON **
+         B     LASTHI           GO ON
+*
+ERALOW   DS    0H
+         LTR   R15,R15          ANY VALID NODE ???
+         BZ    LASTHI           NO, SKIP UPDATING
+         ST    R2,TYPLOW-TYPENDE(R15) ** ERASE PARENT'S LO SON **
+*
+LASTHI   DS    0H
+*
+********* FIND LAST HIEST NODE
+         L     R1,NEXTND        GET RELOCATING NODE ADDR
+         BAL   R14,LAST         FIND LAST HIEST NODE IN BRANCH
+         ST    R1,LASTND        SAVE LAST HIEST NODE ADDR
+*
+********* FIND OUT WICH IS NEXT (RELOCATING) NODE POINTER TO DELETED
+         L     R15,DELEND       LOAD DELETABLE NODE ADDR
+         L     R1,PAREND        GET PARENT NODE ADDR
+         C     R15,TYPHIGH-TYPENDE(R1) DELETING THE PARENT HI NODE ???
+         BNE   REPLALOW         NO, REPLACE PARENT'S LOW BRANCH
+*
+***********************************************************************
+*         HIGH SON PROCESS
+***********************************************************************
+********* MOVE NEXT TO PARENT'S HI
+         L     R15,NEXTND       GET RELOCATING NODE ADDR
+         LTR   R1,R1            ANY VALID NODE ???
+         BZ    NOPARLO1         NO, SKIP UPDATING
+         ST    R15,TYPHIGH-TYPENDE(R1) ** MOVE NEXT PRT TO PARENT HI **
+         ST    R1,TYPTOP-TYPENDE(R15)  ** MOVE PARENT TO NEXT TOP    **
+NOPARLO1 DS    0H
+*
+********* MOVE DELETED HI-SON TO LAST HIEST
+         L     R1,HISONND       GET DELETED HI SON NODE ADDR
+         L     R15,LASTND       GET LAST ASCENDING NODE ADDR
+         LTR   R15,R15          ANY VALID NODE ???
+         BZ    NOHIHI1          NO, SKIP UPDATING
+         ST    R1,TYPHIGH-TYPENDE(R15) ** MOVE HI-SON TO HIEST HI  **
+         ST    R15,TYPTOP-TYPENDE(R1)  ** MOVE HIEST TO HI-SON TOP **
+NOHIHI1  DS    0H
+*
+********* GET LOWEST OF HI-SON
+         L     R1,HISONND       GET NEXT NODE ADDR
+         BAL   R14,LOWEST       GET LOWEST OF NEXT
+         ST    R1,LOWEND        SAVE LOWEST NODE ADDR
+*
+********* CHECK LOW-SON AGAINST NEXT
+         CLC   LOSONND,NEXTND   LOW SON SAME AS NEXT ???
+         BE    DELELAEX         YES, NEXT WLL BE CONNECTED
+*
+********* MOVE DELETED LO-SON TO LOWEST LOW
+         L     R1,LOSONND       GET DELETED LO SON NODE ADDR
+         L     R15,LOWEND       GET LOWEST DESCENDING NODE ADDR
+         LTR   R15,R15          ANY VALID NODE ???
+         BZ    NOLOLO1          NO, SKIP UPDATING
+         ST    R1,TYPLOW-TYPENDE(R15) ** MOVE LO-SON TO LOWEST LOW **
+         ST    R15,TYPTOP-TYPENDE(R1) ** MOVE LOWEST TO LO-SON TOP **
+NOLOLO1  DS    0H
+         B     DELELAEX         EXIT THE WHOLE THING
+*
+***********************************************************************
+*         LOW SON PROCESS
+***********************************************************************
+REPLALOW DS    0H
+*
+********* MOVE NEXT TO PARENT LOW
+         L     R15,NEXTND       GET RELOCATING NODE ADDR
+         LTR   R15,R15          ANY VALID NODE ???
+         BZ    NOPARLO          NO, SKIP UPDATING
+         ST    R15,TYPLOW-TYPENDE(R1) ** MOVE NEXT PRT TO PARENT LO **
+         ST    R1,TYPTOP-TYPENDE(R15) ** MOVE NEXT PRT TO PARENT LO **
+NOPARLO  DS    0H
+*
+********* MOVE HI-SON TO LAST HIEST (IF HI-SON HAS A LOW-SON)
+         L     R1,HISONND       GET DELETED HI SON NODE ADDR
+         C     R1,NEXTND        HI SON SAME AS NEXT ???
+         BE    NOHIHI           YES, SKIP THIS
+         C     R1,LASTND        HI SON SAME AS LAST HIEST ???
+         BE    NOHIHI           YES, SKIP THIS
+         L     R15,LASTND       GET LAST ASCENDING NODE ADDR
+         LTR   R15,R15          ANY VALID NODE ???
+         BZ    NOHIHI           NO, SKIP UPDATING
+         ST    R1,TYPHIGH-TYPENDE(R15) ** MOVE HI SON TO HIEST HI **
+NOHIHI   DS    0H
+*
+********* CONNECT DELETED LOW TO NEXT LOW & NEXT TOP TO DELETED LOW
+         L     R1,DELEND        GET DELETED NODE ADDR
+         L     R1,TYPLOW-TYPENDE(R1) GET DELETED LO SON
+         L     R15,NEXTND       GET NEXT RELOCATINF NODE
+         LTR   R15,R15          ANY VALID NODE ???
+         BZ    NONXTLO          NO, SKIP UPDATING
+         ST    R1,TYPLOW-TYPENDE(R15) ** DELETED LOW TO NEXT LOW **
+         ST    R15,TYPTOP-TYPENDE(R1) ** NEXT TO DELETED LOW TOP **
+NONXTLO  DS    0H
+*
+********* CONNECT PARENT TO NEXT TOP
+         L     R1,PAREND        GET PARENT NODE
+         L     R15,NEXTND       GET RELOCATING NODE
+         LTR   R15,R15          ANY VALID NODE ???
+         BZ    NONXTTO          NO, SKIP UPDATING
+         ST    R1,TYPTOP-TYPENDE(R15) ** MOVE PARENT TO NEXT TOP **
+NONXTTO  DS    0H
+*
+********* CONNECT NEXT TO HI-SON TOP
+         L     R1,NEXTND        GET RELOCATING NODE
+         C     R1,HISONND       NEXT SAME AS HI SON ???
+         BE    DELELAEX         YES, EXIT
+         L     R15,HISONND      GET DELETED HI SON NODE
+         LTR   R15,R15          ANY HI SON ???
+         BZ    DELELAEX         NO, SKIP UPDATING
+         ST    R1,TYPTOP-TYPENDE(R15) ** MOVE NEXT TO HI-SON TOP **
+*
+DELELAEX DS    0H
+         L     R14,DELEKSAV     GET RET ADDR
+         BR    R14
+*
+***********************************************************************
+* PARTIAL ASCENDING NODE REPORTE ROUTINE
+*   ON ENTRY = R7 = NODE KEY ADDR
+***********************************************************************
+PARTASC  DS    0H
+         ST    R14,PARTASAV     SAVE RET ADDR
+         MVC   KEYVAL,0(R7)     SAVE KEY VALUE
+*        MVC   KEYVAL,=F'35'    SAVE INPUT KEY VALUE
+         L     R1,TREEORGN      TREE START ADDRESS
+         BAL   R14,FINDNODE     SEARCH FOR NODE
+         LTR   R15,R15          IS NODE ON TREE TABLE?
+         BNZ   PARTLAEX         NO, SKIP PRINT
+         ST    R1,NEXTORG       NEXT ORIGIN NODE SAVE AREA ADDR
+         MVI   LINE,C'1'               SKIP PAGE
+         MVC   LINE+27(29),=C'PARTIAL ASCENDING NODE REPORT'
+         BAL   R14,PRINTIT             JUST SKIP 3 LINES
+         MVI   LINE,C'-'               SPACE 3 LINES
+         L     R1,NEXTORG       NEXT ORIGIN NODE SAVE AREA ADDR
+         B     PARTAPRT         PRINT 1ST NODE & REST
+PARTALP  DS    0H
+         L     R1,NEXTORG       NEXT ORIGIN NODE SAVE AREA ADDR
+         BAL   R14,NEXT         GO PRINT FORM THERE ON
+         LTR   R15,R15          IS NODE ON TREE TABLE?
+         BZ    PARTLAEX         NO, EXIT
+         ST    R1,NEXTORG       NEXT ORIGIN NODE SAVE AREA ADDR
+PARTAPRT DS    0H
+         LR    R6,R1            NEXT ORIGIN NODE SAVE AREA ADDR
+         BAL   R14,PRINTND      PRINT NODE
+         B     PARTALP          YES, FIND NEXT
+PARTLAEX DS    0H
+         L     R14,PARTASAV     GET RET ADDR
+         BR    R14
+*
+***********************************************************************
+* PARTIAL DESCENDING NODE REPORTE ROUTINE
+*   ON ENTRY = R7 = NODE KEY ADDR
+***********************************************************************
+PARTDES  DS    0H
+         ST    R14,PARTDSAV     SAVE RET ADDR
+         MVC   KEYVAL,0(R7)     SAVE KEY VALUE
+*        MVC   KEYVAL,=F'45'     SAVE INPUT KEY VALUE
+         L     R1,TREEORGN      TREE START ADDRESS
+         BAL   R14,FINDNODE     SEARCH FOR NODE
+         LTR   R15,R15          IS NODE ON TREE TABLE?
+         BNZ   PARTLDEX         NO, SKIP PRINT
+         ST    R1,PRIOORG       NEXT ORIGIN NODE SAVE AREA ADDR
+         LR    R5,R1            SET PARAM TO FINDNEXT
+         MVI   LINE,C'1'               SKIP PAGE
+         MVC   LINE+27(30),=C'PARTIAL DESCENDING NODE REPORT'
+         BAL   R14,PRINTIT             JUST SKIP 3 LINES
+         MVI   LINE,C'-'               SPACE 3 LINES
+         L     R1,PRIOORG       NEXT ORIGIN NODE SAVE AREA ADDR
+         B     PARTDPRT         PRINT 1ST NODE & REST
+PARTDLP  DS    0H
+         L     R1,PRIOORG       NEXT ORIGIN NODE SAVE AREA ADDR
+         BAL   R14,PRIOR        GO PRINT FORM THERE ON
+         LTR   R15,R15          IS NODE ON TREE TABLE?
+         BZ    PARTLDEX         NO, EXIT
+         ST    R1,PRIOORG       NEXT ORIGIN NODE SAVE AREA ADDR
+PARTDPRT DS    0H
+         LR    R6,R1            NEXT ORIGIN NODE SAVE AREA ADDR
+         BAL   R14,PRINTND      PRINT NODE
+         B     PARTDLP          YES, FIND NEXT
+PARTLDEX DS    0H
+         L     R14,PARTDSAV     GET RET ADDR
+         BR    R14
+*
+***********************************************************************
+*        NODE COUNT ROUTINE
+*   ON ENTRY: R5 = START FROM TREE ORIGIN
+***********************************************************************
+COUNT    DS    0H
+         ST    R14,COUNSAV             SAVE RET ADDR
+         SR    R14,R14                 RESET NODE COUNT REG
+         SR    R15,R15                 RESET KEY VALUE REG
+         SR    R6,R6                   RESET NODE POINTER REG
+*        L     R5,TREEORGN             GET TREE TOP
+*
+D01NC    DS    0H
+         LTR   R5,R5                   END OF LEFT BRANCH ?
+         BZ    ENDW1NC                 YES, DO LAST
+         LR    R6,R5                   SAVE PARENT
+         L     R5,TYPLOW-TYPENDE(,R6)  TAKE SON (LEFT BRANCH)
+         B     D01NC
+*
+ENDW1NC  DS    0H
+         LA    R14,1(,R14)             BUMP NODE COUNTER
+         L     R15,TYPKEY-TYPENDE(R6)  GET HIEST KEY VALUE
+         XC    TYPLOC-TYPENDE(4,R6),TYPLOC-TYPENDE(R6) ERASE MARK SW
+         L     R5,TYPHIGH-TYPENDE(,R6) POINT TO HIER NODE FROM HERE
+         LTR   R5,R5                   ANY HIER NODE?
+         BNZ   D01NC                   YES, GO PICK ANY LEFT NODES
+*
+D02NC    DS    0H
+         LR    R5,R6                   SAVE SON
+         L     R6,TYPTOP-TYPENDE(,R5)  TAKE THE PARENT
+         LTR   R6,R6                   DO WE HAVE IT?
+         BZ    REP1EXNC                NO, EXIT
+         C     R5,TYPLOW-TYPENDE(,R6)  IS THIS THE LEFT (LOWER) SON?
+         BNE   D02NC                   NO, GO UP
+         B     ENDW1NC                 YES, TAKE DATA FROM NODE
+*
+REP1EXNC DS    0H
+         ST    R15,HIESTKEY            SAVE HIEST KEY VALUE
+         ST    R14,NODECOUN            SAVE NODE COUNT
+         L     R14,COUNSAV             GET RET ADDR
+         BR    R14
+*
+***********************************************************************
+*        NODE REPORTE ROUTINE
+***********************************************************************
+REPORTA  DS    0H
+         ST    R14,REPASAV             SAVE RET ADDR
+         MVC   SCRLINCN,=F'6'       SCREEN LINE COUNTER (24 TO 1 WRAP)
+         MVC   SCRCOLCN,=F'1'       SCREEN COLUMN WITHIN LINE
+         MVC   SCRLENCN,=F'4'       SCREEN LENGTH TO BE MOVED
+         MVC   LINE+1(4),=C'ASC:'   MOVE ASCENDING TITLE
+*        MVI   LINE,C'1'               SKIP PAGE
+*        MVC   LINE+27(27),=C'ASCENDING ORDER NODE REPORT'
+*        BAL   R14,PRINTIT             JUST SKIP 3 LINES
+*        MVI   LINE,C'-'               SPACE 3 LINES
+         SR    R6,R6                   RESET
+         L     R5,TREEORGN             GET TREE TOP
+*
+D01      DS    0H
+         LTR   R5,R5                   END OF LEFT BRANCH ?
+         BZ    ENDW1                   YES, DO LAST
+         LR    R6,R5                   SAVE PARENT
+         L     R5,TYPLOW-TYPENDE(,R6)  TAKE SON (LEFT BRANCH)
+         B     D01
+*
+ENDW1    DS    0H
+         BAL   R14,PRINTND             PRINT LOWER NODE
+         L     R5,TYPHIGH-TYPENDE(,R6) POINT TO HIER NODE FROM HERE
+         LTR   R5,R5                   ANY HIER NODE?
+         BNZ   D01                     YES, GO PICK ANY LEFT NODES
+*
+D02      DS    0H
+         LR    R5,R6                   SAVE SON
+         L     R6,TYPTOP-TYPENDE(,R5)  TAKE THE PARENT
+         LTR   R6,R6                   DO WE HAVE IT?
+         BZ    REP1EX                  NO, EXIT
+         C     R5,TYPLOW-TYPENDE(,R6)  IS THIS THE LEFT (LOWER) SON?
+         BNE   D02                     NO, GO UP
+         B     ENDW1                   YES, TAKE DATA FROM NODE
+*
+REP1EX   DS    0H
+         L     R14,REPASAV             GET RET ADDR
+         BR    R14
+*
+***********************************************************************
+*        NODE REPORTE ROUTINE
+***********************************************************************
+REPORTD  DS    0H
+         ST    R14,REPDSAV             SAVE RET ADDR
+         MVC   SCRLINCN,=F'6'       SCREEN LINE COUNTER (24 TO 1 WRAP)
+         MVC   SCRCOLCN,=F'1'       SCREEN COLUMN WITHIN LINE
+         MVC   SCRLENCN,=F'4'       SCREEN LENGTH TO BE MOVED
+         MVC   LINE+1(4),=C'DES:'   MOVE DESCENDING TITLE
+*        MVI   LINE,C'1'               SKIP PAGE
+*        MVC   LINE+27(28),=C'DESCENDING ORDER NODE REPORT'
+*        BAL   R14,PRINTIT             JUST SKIP 3 LINES
+*        MVI   LINE,C'-'               SPACE 3 LINES
+         SR    R6,R6            RESET
+         L     R5,TREEORGN      GET TREE TOP
+*
+D01D     DS    0H
+         LTR   R5,R5                   END OF LEFT BRANCH ?
+         BZ    ENDW1D                  YES, DO LAST
+         LR    R6,R5                   SAVE PARENT
+         L     R5,TYPHIGH-TYPENDE(,R6) POINT TO HIER NODE FROM HERE
+         B     D01D
+*
+ENDW1D   DS    0H
+         BAL   R14,PRINTND             PRINT LOWER NODE
+         L     R5,TYPLOW-TYPENDE(,R6)  TAKE SON (LEFT BRANCH)
+         LTR   R5,R5                   ANY HIER NODE?
+         BNZ   D01D                    YES, GO PICK ANY LEFT NODES
+*
+D02D     DS    0H
+         LR    R5,R6                   SAVE SON
+         L     R6,TYPTOP-TYPENDE(,R5)  TAKE THE PARENT
+         LTR   R6,R6                   DO WE HAVE IT?
+         BZ    REP2EX                  NO, EXIT
+         C     R5,TYPHIGH-TYPENDE(,R6) POINT TO HIER NODE FROM HERE
+         BNE   D02D                    NO, GO UP
+         B     ENDW1D                  YES, TAKE DATA FROM NODE
+*
+REP2EX   DS    0H
+         L     R14,REPDSAV             GET RET ADDR
+         BR    R14
+*
+***********************************************************************
+*        HORIZONTAL NODE REPORTE ROUTINE
+***********************************************************************
+REPORTH  DS    0H
+         ST    R14,REPHSAV             SAVE RET ADDR
+         MVI   NOKEYS,C' '             ERASE SON TYPE
+         MVI   LINE,C'1'               SKIP PAGE
+         MVC   LINE+31(16),=C'TREE NODE REPORT'
+         BAL   R14,PRINTIT             JUST SKIP 3 LINES
+         MVI   LINE,C'-'               SPACE 3 LINES
+         L     R6,TREEORGN             GET TREE ROOT
+         LA    R9,60                   GET SCREEN CENTER
+         BAL   R14,PRINTND1            PRINT NODE
+NEXTHI   DS    0H
+         LR    R5,R6                   SAVE POINTER TO BACKOFF
+         L     R6,TYPHIGH-TYPENDE(,R6) MOVE TO HIGH
+         LTR   R6,R6                   ANY HI HERE?
+         BNZ   PRINTHI                 YES, PRINT HI
+         LR    R6,R5                   NO, RESET TO TOP
+*
+         MVI   NOKEYS,C'0'             SET ZERO KEY TO PRINT
+         L     R9,TYPLOC-TYPENDE(,R6) GET PRINT LOCATION
+         A     R9,=F'60'               LOCATE RELATIVE TO CENTER
+         A     R9,=F'6'                LOCATE RELATIVE TO CENTER
+         A     R9,SUBTRA               LOCATE RELATIVE TO CENTER
+         MVI   SONTYPE,C'\'            MOVE HI SON TYPE
+         BAL   R14,PRINTND1            PRINT NODE
+         MVI   NOKEYS,C' '             RESET KEY TO BE PRINTED
+*
+         B     CHKLOW                  CHECK LOW
+PRINTHI  DS    0H
+         L     R9,TYPLOC-TYPENDE(,R6) GET PRINT LOCATION
+         A     R9,=F'60'               LOCATE RELATIVE TO CENTER
+         A     R9,SUBTRA               LOCATE RELATIVE TO CENTER
+         MVI   SONTYPE,C'\'            MOVE HI SON TYPE
+         BAL   R14,PRINTND1            PRINT NODE
+         B     NEXTHI                  DO ALL HIGH ONES
+*
+CHKLOW   DS    0H
+         LR    R5,R6                   SAVE POINTER TO BACKOFF
+         L     R6,TYPLOW-TYPENDE(,R6)  MOVE TO LOW
+         LTR   R6,R6                   ANY LOW HERE?
+         BNZ   PRINTLO                 YES, PRINT LOW
+         LR    R6,R5                   NO, RESET TO TOP
+*
+         MVI   NOKEYS,C'0'             SET ZERO KEY TO PRINT
+         L     R9,TYPLOC-TYPENDE(,R6) GET PRINT LOCATION
+         A     R9,=F'60'               LOCATE RELATIVE TO CENTER
+         S     R9,=F'6'                LOCATE RELATIVE TO CENTER
+         A     R9,SUBTRA               LOCATE RELATIVE TO CENTER
+         MVI   SONTYPE,C'/'            MOVE HI SON TYPE
+         BAL   R14,PRINTND1            PRINT NODE
+         MVI   NOKEYS,C' '             RESET KEY TO BE PRINTED
+*
+         B     CHKTOP                  CHECK TOP
+PRINTLO  DS    0H
+         L     R9,TYPLOC-TYPENDE(,R6) GET PRINT LOCATION
+         A     R9,=F'60'               LOCATE RELATIVE TO CENTER
+         A     R9,SUBTRA               LOCATE RELATIVE TO CENTER
+         MVI   SONTYPE,C'/'            MOVE LOW SON TYPE
+         BAL   R14,PRINTND1            PRINT NODE
+         B     NEXTHI                  TAKE HI ROUT
+*
+CHKTOP1  DS    0H
+         L     R9,SUBTRA               DECREMENT
+         S     R9,=F'6'                SECUNDARY PRINT LOCATION
+         ST    R9,SUBTRA               & SAVE
+CHKTOP   DS    0H
+         L     R6,TYPTOP-TYPENDE(,R6)  MOVE TO TOP
+         LTR   R6,R6                   ARE WE AT THE ROOT?
+         BZ    REP3EX                  YES, EXIT, DO NEXT REPORT
+         CLC   LASTKEY,TYPKEY-TYPENDE(R6)  LASTKEY HIER THAN TOP?
+         BNH   CHKTOP1                 NO, MOVE 1 STEP DEEPER
+         B     CHKLOW                  YES, CHECK LOW NOT TAKEN
+*
+REP3EX   DS    0H
+         L     R14,REPHSAV             GET RET ADDR
+         BR    R14
+*
+***********************************************************************
+*        VERTICAL NODE REPORTE ROUTINE
+***********************************************************************
+REPORTV  DS    0H
+         ST    R14,REPVSAV             SAVE RET ADDR
+*
+         LA    R14,SCRMAP+400          GET LINE 6 ADDRESS
+         LA    R1,19                   GET LOOP COUNT (18 LINES LEFT)
+ERALP1   DS    0H
+         MVC   0(80,R14),=CL80' '      MOVE SPACES TO SCREEN LINE
+         LA    R14,80(,R14)            BUMP SCREEN BUFFER ADDR
+         BCT   R1,ERALP1               LOOP
+*
+         CLI   ASCEDESC,C' '    ASCENDING ORDER ???
+         BNE   NOTASCE          NO, LIST DESCENDING
+         BAL   R14,REPORTA      PRINT ASCENDING REPORT
+         B     ASCORDES         GO ON
+NOTASCE  DS    0H
+         BAL   R14,REPORTD      PRINT DESCENDING REPORT
+ASCORDES DS    0H
+*
+         MVC   SCRLINCN,=F'6'   SCREEN LINE COUNTER (24 TO 1 WRAP)
+         MVC   SCRCOLCN,=F'16'  SCREEN COLUMN WITHIN LINE
+         MVC   SCRLENCN,=F'62'  SCREEN LENGTH TO BE MOVED
+         MVI   VLINE,C' '              FILL VERTICAL LINES SWITCH
+         MVC   VLINE+1(L'VLINE-1),VLINE     WITH BLANKS
+         MVI   NOKEYS,C' '             ERASE SON TYPE
+         MVI   SONTYPE,C' '            ERASE SON TYPE
+*        MVI   LINE,C'1'               SKIP PAGE
+*        MVC   LINE+29(20),=C'VERTICAL NODE REPORT'
+*        BAL   R14,PRINTIT1            JUST SKIP 3 LINES
+*        MVI   LINE,C'-'               SPACE 3 LINES
+         L     R6,TREEORGN             GET TREE ROOT
+         LA    R9,3                    GET SCREEN LEFT BORDER
+         BAL   R14,PRINTND1            PRINT NODE
+NEXTHIV  DS    0H
+         A     R9,=F'4'                LOCATE RELATIVE TO CENTER
+         LR    R5,R6                   SAVE POINTER TO BACKOFF
+         L     R6,TYPHIGH-TYPENDE(,R6) MOVE TO HIGH
+         LTR   R6,R6                   ANY HI HERE?
+         BNZ   PRINTHIV                YES, PRINT HI
+         MVC   SAVEKEY,LASTKEY         SAVE KEY
+         XC    LASTKEY,LASTKEY         ERASE TO PRINT NO LOW
+         BAL   R14,PRINTND1            PRINT NODE (WITH ZEROES)
+         MVC   LASTKEY,SAVEKEY         RESTORE KEY
+         LR    R6,R5                   NO, RESET TO TOP
+         B     CHKLOWV                 CHECK LOW
+PRINTHIV DS    0H
+         BAL   R14,PRINTND1            PRINT NODE
+         B     NEXTHIV                 DO ALL HIGH ONES
+*
+CHKLOWV  DS    0H
+         LR    R5,R6                   SAVE POINTER TO BACKOFF
+         L     R6,TYPLOW-TYPENDE(,R6)  MOVE TO LOW
+         LTR   R6,R6                   ANY LOW HERE?
+         BNZ   PRINTLOV                YES, PRINT LOW
+         MVC   SAVEKEY,LASTKEY         SAVE KEY
+         XC    LASTKEY,LASTKEY         ERASE TO PRINT NO LOW
+         BAL   R14,PRINTND1            PRINT NODE (WITH ZEROES)
+         MVC   LASTKEY,SAVEKEY         RESTORE KEY
+         LR    R6,R5                   NO, RESET TO TOP
+         S     R9,=F'4'                LOCATE RELATIVE TO CENTER
+         B     CHKTOPV                 CHECK TOP
+PRINTLOV DS    0H
+         BAL   R14,PRINTND1            PRINT NODE
+         B     NEXTHIV                 TAKE HI ROUT
+*
+CHKTOPV1 DS    0H
+         S     R9,=F'4'                LOCATE RELATIVE TO CENTER
+CHKTOPV  DS    0H
+         L     R6,TYPTOP-TYPENDE(,R6)  MOVE TO TOP
+         LTR   R6,R6                   ARE WE AT THE ROOT?
+         BZ    REP4EX                  YES, EXIT
+         CLC   LASTKEY,TYPKEY-TYPENDE(R6)  LASTKEY HIER THAN TOP?
+         BNH   CHKTOPV1                NO, MOVE 1 STEP DEEPER
+         B     CHKLOWV                 YES, CHECK LOW NOT TAKEN
+*
+REP4EX   DS    0H
+         BAL   R14,PRINTIT1            PRINT LAST DATA
+         L     R14,REPVSAV             GET RET ADDR
+         BR    R14
+*
+***********************************************************************
+*        ACCUMULATE NODE TYPE COUNT & PROCESS COUNT
+***********************************************************************
+ACCUMND  DS    0H
+         DROP  R4
+         ST    R14,ACCUSAV      SAVE RET ADDR
+         USING TYPENDE,R1       MAP NODE WITH DSECT
+         L     R15,TYPCNT       INCREMENT RECORD TYPE COUNT
+         LA    R15,1(,R15)      BUMP
+         ST    R15,TYPCNT       STORE BACK
+         DROP  R1
+         L     R1,RECDCNT       INCREMENT INPUT RECORD COUNT
+         LA    R1,1(,R1)        BUMP
+         ST    R1,RECDCNT       STORE BACK
+*
+         L     R14,ACCUSAV      GET RET ADDR
+         BR    R14              RETURN TO CALLER
+*
+***********************************************************************
+*        TREE FORM NODE PRINT ROUTINE
+***********************************************************************
+PRINTND1 DS    0H
+         ST    R14,PRND1SAV            SAVE RET ADDR
+*
+         C     R9,PRINLOC              DOES IT GOES ON SAME LINE ???
+         BH    SAMELINE                YES, DON'T PRINT
+         BAL   R14,VERTLIN             PRINT OR ERASE VERTCAL LINES
+         BAL   R14,PRINTIT1            JOT IT DOWN
+SAMELINE DS    0H
+         ST    R9,PRINLOC              UPDATE FOR NEXT TIME
+*
+         USING TYPENDE,R6
+         L     R1,TYPKEY               GET LRECL
+         ST    R1,LASTKEY              SAVE LAST PRINTED KEY
+         LA    R10,LINE                LINE ADDRESS PLUS OFFSET
+         AR    R10,R9                  LINE ADDRESS PLUS OFFSET
+*         CLI   SONTYPE,C' '            ANY SON TYPE?
+*         BE    NOSON                   NO, SKIP PRINT
+*         MVC   2(1,R10),SONTYPE        FRAME IT
+*         BAL   R14,PRINTIT             JOT IT DOWN
+*NOSON    DS    0H
+         MVC   0(4,R10),=X'4B202020'   MASK IT
+         LA    R1,0                    GET DUMMY KEY
+         CLI   NOKEYS,C'0'             WANT TO PRINT KEYS?
+         BE    VOIDKEY                 NO, SKIP PRINT
+         L     R1,LASTKEY              GET IT BACK
+VOIDKEY  DS    0H
+         CVD   R1,DOBLE                CONVERT
+         ED    0(4,R10),DOBLE+6        & EDIT
+         MVI   0(R10),C'|'             FRAME IT
+         L     R14,PRND1SAV            GET RET ADDR
+         BR    R14                     RETURN TO CALLER
+         DROP  R6
+*
+***********************************************************************
+*        ASCENDING ORDER NODE PRINT ROUTINE
+***********************************************************************
+PRINTND  DS    0H
+         ST    R14,PRNDSAV             SAVE RET ADDR
+         USING TYPENDE,R6
+         L     R1,TYPKEY               GET LRECL
+         ST    R1,LASTKEY              SAVE LAST PRINTED KEY
+         CVD   R1,DOBLE                CONVERT
+         MVI   LINE+7,C'.'             ANYTHING TO PRINT
+         MVC   LINE+1(4),=X'40202120'
+         ED    LINE+1(4),DOBLE+6       & EDIT
+         BAL   R14,PRINTIT1            JOT IT DOWN
+PRINTEX  DS    0H
+         L     R14,PRNDSAV             GET RET ADDR
+         BR    R14                     RETURN TO CALLER
+         DROP  R6
+*
+***********************************************************************
+*        PRIT ROUTINE
+***********************************************************************
+PRINTIT1 DS    0H
+         ST    R14,PRISAV             SAVE RET ADDR
+         CLC   LINE+7(8),=CL8' '      ANYTHING TO PRINT ???
+         BE    CLEARLIN               NOT ON 1ST 6 COLS, EXIT
+         L     R1,SCRLINCN            SCREEN LINE COUNTER (24->1 WRAP)
+         LTR   R1,R1                  ANY VALUE ???
+         BNZ   CALCREST               YES, MUST BE OK
+         LA    R1,1                   POINT TO 1ST LINE
+CALCREST DS    0H
+         LR    R14,R1                 GET A COPY
+         S     R14,=F'1'              DECREMENT COUNT
+         MH    R14,=H'80'             MULTIPLY BY SCREEN COLUMNS
+         LA    R14,SCRMAP(R14)        GET ACTUAL SCREEN LINE ADDR
+         A     R14,SCRCOLCN           SCREEN COLUMN WITHIN LINE
+         ST    R14,SCRLINAD           SCREEN LINE ADDRESS
+         C     R1,=F'24'              DID WE REACH THE LIMIT ???
+         BH    CLEARLIN               NO, GO CLEAR THE LINE
+         L     R2,SCRLENCN            SCREEN LENGTH TO BE MOVED
+         BCTR  R2,0                   DECREMENT
+         EX    R2,PRINTMV             MOVE LINE TO SCREEN
+         LA    R1,1(,R1)              BUMP SCREEN LINE COUNT
+         ST    R1,SCRLINCN            SCREEN LINE COUNTER (24->1 WRAP)
+******** PUT   PRINT,LINE             WRITE IT DOWN
+CLEARLIN DS    0H
+         MVI   LINE,C' '              FILL THE LINE
+         MVC   LINE+1(L'LINE-1),LINE  WITH BLANKS
+         L     R14,PRISAV             GET RET ADDR
+         BR    R14                    RETURN TO CALLER
+*
+PRINTMV  MVC   0(*-*,R14),LINE+1      MOVE LINE TO SCREEN
+*
+***********************************************************************
+*        VERTICAL LINES ROUTINE
+***********************************************************************
+VERTLIN  DS    0H
+         ST    R14,VERTSAV    SAVE RET ADDR
+         STM   R3,R6,VERTRR   SAVE WORK REGS
+*
+         LA    R3,10          VERTICAL LINES LOOP COUNTER
+         LA    R5,0           VERTICAL LINES LOCATION COUNTER
+         LA    R4,LINE+7      PRINT LINE AREA
+VERTLLP  DS    0H
+         CLI   0(R4),C' '     ANY VERTICAL LINE BEEN PRINTED ???
+         BE    NOVERTL        NO, NO VERTICAL LINE
+*
+         LA    R6,VLINE(R5)   GET VERTICAL LINE SWITCH (WITH 30 LINES)
+         CLI   0(R6),C' '     ANY VERTICAL LINE BEEN PRINTED ???
+         BE    SWTOLIN        NO, SWITCH TO LINE
+         MVI   0(R6),C' '     SWITCH TO BLANK
+         B     NOVERTL        SKIP THE REST
+SWTOLIN  DS    0H
+         MVI   0(R6),C'|'     SWITCH TO BLANK
+*
+NOVERTL  DS    0H
+         LA    R5,1(,R5)      VERTICAL LINES LOCATION COUNTER
+         LA    R4,4(,R4)      BUMP VERTICAL LINE LOCTATION
+         BCT   R3,VERTLLP     LOOP
+*
+         LA    R3,10          VERTICAL LINES LOOP COUNTER
+         LA    R4,LINE+7      PRINT LINE AREA
+         LA    R5,0           VERTICAL LINES LOCATION COUNTER
+VERTLLP2 DS    0H
+         LA    R6,VLINE(R5)   GET VERTICAL LINE SWITCH
+         MVC   0(1,R4),0(R6)  MOVE LINE OR BLANK TO PRINT LINE
+         LA    R5,1(,R5)      VERTICAL LINES LOCATION COUNTER
+         LA    R4,4(,R4)      BUMP VERTICAL LINE LOCTATION
+         BCT   R3,VERTLLP2    LOOP
+*
+         LM    R3,R6,VERTRR   POP WORK REGS
+         L     R14,VERTSAV    GET RET ADDR
+         BR    R14
+*
+***********************************************************************
+*        PRIT ROUTINE
+***********************************************************************
+PRINTIT  DS    0H
+         ST    R14,PRISAV              SAVE RET ADDR
+*        PUT   PRINT,LINE              WRITE IT DOWN
+         MVI   LINE,C' '               FILL THE LINE
+         MVC   LINE+1(132),LINE        WITH BLANKS
+         L     R14,PRISAV              GET RET ADDR
+         BR    R14                     RETURN TO CALLER
+*
+***********************************************************************
+*        GENERATE NEW NODES
+***********************************************************************
+MAKENODE DS    0H
+         ST    R14,MAKENSAV            SAVE RET ADDR
+         GETMAIN R,LV=32               TYPNLEN = 32
+         USING TYPENDE,R1
+*        MVC   TYPDEB,=C'GETMAIND'    INIT FIELDS
+         MVC   TYPDEB,DEBNAME         INIT FIELDS
+         XC    TYPTOP,TYPTOP
+         XC    TYPLOW,TYPLOW
+         XC    TYPHIGH,TYPHIGH
+         XC    TYPCNT,TYPCNT
+         XC    TYPLOC,TYPLOC
+         DROP  R1
+         L     R14,MAKENSAV            GET RET ADDR
+         BR    R14
+*
+***********************************************************************
+*        SEARCH FOR NODES
+***********************************************************************
+FINDNODE DS    0H
+         ST    R14,FINDNSAV     SAVE RET ADDR
+         LTR   R1,R1            ANY TREE ORIGIN PARM ???
+         BNZ   FINDNTOR         YES, SKIP NO TREE ORIGIN TO LOAD
+         L     R1,TREEORGN      TREE START ADDRESS
+FINDNTOR DS    0H
+         USING TYPENDE,R1       ADDRESS NODE TABLE TO REG 1
+         LR    R15,R1           SAVE PTR TO CURRENT NODE
+LOCATES  DS    0H
+         CLC   TYPKEY,KEYVAL    IS THIS THE NODE WITH THE KEY ?
+         BE    SAMENODE         OK, NODE OK, EXIT
+         LTR   R15,R15          IS THIS THE LAST NODE IN CHAIN ?
+         BZ    LASTNODE         YES, SHOW NO KEY, EXIT
+         LR    R1,R15           SAVE IN R1 PTR TO CLOSER NODE
+*
+         CLC   KEYVAL,TYPKEY    IS THE KEY LOWER?
+         BL    KEYLOW           YES, SCROLL IT LEFT
+         L     R15,TYPHIGH      TAKE RIGHT BRANCH
+         B     LOCATES          CONTINUE SEARCH
+KEYLOW   DS    0H
+         L     R15,TYPLOW       TAKE LEFT BRANCH
+         B     LOCATES          CONTINUE SEARCH
+*
+SAMENODE DS    0H
+         SR    R15,R15          THE KEY EXISTS, RC=0, OK
+         B     FINDEXIT         EXIT
+*
+LASTNODE DS    0H
+         LA    R15,4            THE KEY DOESN'T EXIST, RC=4
+*
+FINDEXIT DS    0H
+         L     R14,FINDNSAV     GET RET ADDR
+         BR    R14
+         DROP  R1
+*
+***********************************************************************
+* SKIP FEW NODES ASCENDING
+*   ON ENTRY: R1 =  0 = START FROM TREE ORIGIN
+*             R1 <> 0 = START FORM ORIGIN IN R1
+*             R2 =  0 = SKIP ONE FROM TREE ORIGIN
+*             R2 <> 0 = SKIP R2 AMOUNT OF NODES
+***********************************************************************
+SKIPFEW  DS    0H
+         ST    R14,SKIPSAV      SAVE RET ADDR
+         LTR   R1,R1            ANY TREE ORIGIN PARM ???
+         BNZ   SKIPFPAR         YES, SKIP LOADING TREE ORIGIN
+         L     R1,TREEORGN      TREE START ADDRESS
+SKIPFPAR DS    0H
+         BAL   R14,NEXT         SKIP ONE NODE
+         LTR   R15,R15          ANY LUCK ???
+         BZ    SKIPFEX          NO, EXIT
+         LTR   R2,R2            AT LEAST ONE TO SKIP ???
+         BZ    SKIPFEX          NO, EXIT
+         BCT   R2,SKIPFPAR      LOOP FOR MORE SKIPS
+SKIPFEX  DS    0H
+         L     R14,SKIPSAV      GET RET ADDR
+         BR    R14
+*
+***********************************************************************
+* SEARCH FOR NEXT NODE
+*   ON ENTRY: R1 =  0 = START FROM TREE ORIGIN
+*             R1 <> 0 = START FORM ORIGIN IN R1
+***********************************************************************
+NEXT     DS    0H
+         ST    R14,NEXTSAV      SAVE RET ADDR
+         ST    R2,NEXTRR        SAVE REGS
+         LTR   R1,R1            ANY TREE ORIGIN PARM?
+         BNZ   NEXTPARM         YES, SKIP LOADING TREE ORIGIN
+         L     R1,TREEORGN      TREE START ADDRESS
+NEXTPARM DS    0H
+         USING TYPENDE,R1       ADDRESS NODE TABLE TO REG 1
+         ST    R1,NEXTORG1      SAVE LAST NODE ADDR
+         MVC   KEYVAL,TYPKEY    SAVE KEY VALUE
+*
+NEXTLP   DS    0H
+         L     R15,TYPHIGH      TAKE RIGHT BRANCH
+         LTR   R15,R15          ANY HI BRANCH ????
+         BNZ   NEXTLOW          YES, GET DOWN TO LOWER CHILDREN
+NEXTTOP  DS    0H
+         L     R15,TYPTOP       TAKE PARENT BRANCH
+         LTR   R15,R15          ANY PARENT BRANCH ????
+         BZ    NEXTNOTF         NO, NEXT NOT FOUND
+         LR    R1,R15           SAVE CURRENT NODE PTR
+         CLC   TYPKEY,KEYVAL    HIER THAN ONE SUPPLIED ????
+         BH    NEXTFOUN         YES, WE GOT IT, EXIT
+         B     NEXTTOP          LOOP BACK TO TOP
+*
+NEXTNOTF DS    0H
+         L     R1,NEXTORG1      GET LAST NODE ADDR
+         LA    R15,0            NO MORE, RC=0
+         B     NEXTEXIT         EXIT
+*
+NEXTFOUN DS    0H
+         LA    R15,1            KEY FOUND, RC=1
+         B     NEXTEXIT         EXIT
+*
+NEXTLOW  DS    0H
+         LR    R1,R15           SAVE CURRENT NODE PTR
+         L     R15,TYPLOW       TAKE LOW SON
+         LTR   R15,R15          ANY LOW SON ???
+         BZ    NEXTFOUN         NO, PRIOR IS THE ONE
+         B     NEXTLOW          LOOP FOR MORE LOW CHILDREN
+*
+NEXTEXIT DS    0H
+         L     R2,NEXTRR        LOAD REGS
+         L     R14,NEXTSAV      GET RET ADDR
+         BR    R14              RETURN TO CALLER
+         DROP  R1
+*
+***********************************************************************
+* SEARCH FOR BRANCH LAST NODE
+*   ON ENTRY: R1 =  0 = START FROM TREE ORIGIN
+*             R1 <> 0 = START FORM ORIGIN IN R1
+***********************************************************************
+LAST     DS    0H
+         ST    R14,LASTSAV      SAVE RET ADDR
+         LTR   R1,R1            ANY TREE ORIGIN PARM?
+         BNZ   LASTPARM         YES, SKIP LOADING TREE ORIGIN
+         L     R1,TREEORGN      TREE START ADDRESS
+LASTPARM DS    0H
+         USING TYPENDE,R1       ADDRESS NODE TABLE TO REG 1
+         ST    R1,LASTORG1      SAVE LAST NODE ADDR
+         MVC   KEYVAL,TYPKEY    SAVE KEY VALUE
+*
+LASTLP   DS    0H
+         L     R15,TYPHIGH      TAKE HIGH BRANCH
+         LTR   R15,R15          ANY HI BRANCH ????
+         BZ    LASTEXIT         NO, LAST POINTED TO BY R1
+         LR    R1,R15           GET HIEST FROM NEXT
+         B     LASTLP           LOOP
+*
+LASTEXIT DS    0H
+         L     R14,LASTSAV      GET RET ADDR
+         BR    R14              RETURN TO CALLER
+         DROP  R1
+*
+***********************************************************************
+* SEARCH FOR BRANCH LOWEST NODE
+*   ON ENTRY: R1 =  0 = START FROM TREE ORIGIN
+*             R1 <> 0 = START FORM ORIGIN IN R1
+***********************************************************************
+LOWEST   DS    0H
+         ST    R14,LOWESAV      SAVE RET ADDR
+         LTR   R1,R1            ANY TREE ORIGIN PARM?
+         BNZ   LOWEPARM         YES, SKIP LOADING TREE ORIGIN
+         L     R1,TREEORGN      TREE START ADDRESS
+LOWEPARM DS    0H
+         USING TYPENDE,R1       ADDRESS NODE TABLE TO REG 1
+         ST    R1,LOWEORG1      SAVE LOWEST NODE ADDR
+         MVC   KEYVAL,TYPKEY    SAVE KEY VALUE
+*
+LOWELP   DS    0H
+         L     R15,TYPLOW       TAKE LOW BRANCH
+         LTR   R15,R15          ANY LO BRANCH ????
+         BZ    LOWEEXIT         NO, LOWEST POINTED TO BY R1
+         LR    R1,R15           GET LOWEST FROM NEXT
+         B     LOWELP           LOOP
+*
+LOWEEXIT DS    0H
+         L     R14,LOWESAV      GET RET ADDR
+         BR    R14              RETURN TO CALLER
+         DROP  R1
+*
+***********************************************************************
+* SEARCH FOR PRIOR NODE
+*   ON ENTRY: R1 =  0 = START FROM TREE ORIGIN
+*             R1 <> 0 = START FORM ORIGIN IN R1
+***********************************************************************
+PRIOR    DS    0H
+         ST    R14,PRIOSAV      SAVE RET ADDR
+         LTR   R1,R1            ANY TREE ORIGIN PARM?
+         BNZ   PRIOPARM         YES, SKIP LOADING TREE ORIGIN
+         L     R1,TREEORGN      TREE START ADDRESS
+PRIOPARM DS    0H
+         USING TYPENDE,R1       ADDRESS NODE TABLE TO REG 1
+         ST    R1,PRIOORG1      SAVE LAST NODE ADDR
+         MVC   KEYVAL,TYPKEY    SAVE KEY VALUE
+*
+PRIOLP   DS    0H
+         L     R15,TYPLOW       TAKE LOW BRANCH
+         LTR   R15,R15          ANY LO BRANCH ????
+         BNZ   PRIOHIGH         YES, GET DOWN TO HIER CHILDREN
+PRIOTOP  DS    0H
+         L     R15,TYPTOP       TAKE PARENT BRANCH
+         LTR   R15,R15          ANY PARENT BRANCH ????
+         BZ    PRIONOTF         NO, PRIOR NOT FOUND
+         LR    R1,R15           SAVE CURRENT NODE PTR
+         CLC   TYPKEY,KEYVAL    LOWER THAN ONE SUPPLIED ????
+         BL    PRIOFOUN         YES, WE GOT IT, EXIT
+         B     PRIOTOP          LOOP FOR MORE GRAND PARENTS
+*
+PRIONOTF DS    0H
+         L     R1,PRIOORG1      GET LAST NODE ADDR
+         LA    R15,0            NO MORE, RC=0
+         B     PRIOEXIT         EXIT
+*
+PRIOFOUN DS    0H
+         LA    R15,1            KEY FOUND, RC=1
+         B     PRIOEXIT         EXIT
+*
+PRIOHIGH DS    0H
+         LR    R1,R15           SAVE CURRENT NODE PTR
+         L     R15,TYPHIGH      TAKE HI SON
+         LTR   R15,R15          ANY HI SON ????
+         BZ    PRIOFOUN         NO, PRIOR IS THE ONE
+         B     PRIOHIGH         LOOP FOR MORE HI GRAND CHILDREN
+*
+PRIOEXIT DS    0H
+         L     R14,PRIOSAV      GET RET ADDR
+         BR    R14              RETURN TO CALLER
+         DROP  R1
+*
+         LTORG
+***********************************************************************
+         TITLE 'INPUT TEST TABLE'
+***********************************************************************
+INTABLE  DS    0F               INPUT TEST TABLE
+         DC    F'100'
+         DC    F'150'
+         DC    F'50'
+         DC    F'175'
+         DC    F'125'
+         DC    F'75'
+         DC    F'25'
+         DC    F'188'
+         DC    F'162'
+         DC    F'138'
+         DC    F'112'
+         DC    F'88'
+         DC    F'62'
+         DC    F'38'
+         DC    F'12'
+         DC    F'00'            TABLE DELIMITER
+*
+***********************************************************************
+*         CONSTANTS, WORK AREAS AND CONTOL BLOCKS
+***********************************************************************
+RECDCNT  DC    F'0'             NODE ACCESS COUNT
+RETCODE  DS    F                RETURN CODE
+PRINLOC  DC    F'0'             PRINT LOCATION COMPARATOR
+SONTYPE  DS    C                LOWER|HIER SON MARK
+KEYVAL   DS    F                TABLE VALUE
+*SAVEAREA DS    18F             PROGRAM SAVE AREA
+DOBLE    DS    D                USED FOR CVD
+DOBLE1   DS    D                USED FOR CVB
+TREEORGN DS    F                TREE STRUCTURE START ADDRESS
+LASTKEY  DS    F                LAST KEY PRINTED INDICATOR
+SAVEKEY  DS    F                TEMPORARY KEY SAVE AREA
+NOKEYS   DS    C                PRINT ZEROES INSTEAD OF THE KEY
+SUBTRA   DC    F'0'             HORIZONTAL REP LINE LOCATION DECREMENT
+VLINE    DC    CL30' '          VERTICAL LINE SWITCH (ACCOUNT FOR 30)
+LINE     DC    CL133'1'         OUTPUT LINE BUFF
+TABLELD  DC    C' '             TABLE LOADED ALREADY IND SWITCH
+FIRSTNOD DC    C' '             SHOW TABLE INITIALIZED ALREADY
+*
+***********************************************************************
+*         SUBROUTINE NODE ADDRESS SAVE AREAS
+***********************************************************************
+LASTORG  DC    F'0'             LAST ORIGIN NODE SAVE AREA ADDR
+LASTORG1 DC    F'0'             LAST ORIGIN NODE SAVE AREA ADDR
+LOWEORG  DC    F'0'             LOWEST ORIGIN NODE SAVE AREA ADDR
+LOWEORG1 DC    F'0'             LOWEST ORIGIN NODE SAVE AREA ADDR
+NEXTORG  DC    F'0'             NEXT ORIGIN NODE SAVE AREA ADDR
+NEXTORG1 DC    F'0'             NEXT ORIGIN NODE SAVE AREA ADDR
+PRIOORG  DC    F'0'             PRIOR ORIGIN NODE SAVE AREA ADDR
+PRIOORG1 DC    F'0'             PRIOR ORIGIN NODE SAVE AREA ADDR
+PRIOKEY  DC    F'0'             PRIOR ORIGIN NODE KEY SAVE AREA
+NEXTKEY  DC    F'0'             NEXT ORIGIN NODE KEY SAVE AREA
+*
+***********************************************************************
+*         BALANCE ROUTINE CONTROL WORDS
+***********************************************************************
+         DC    C'HERE ARE BALAN WORDS'
+SAVINPN  DC    F'0'             INPUT NODE TABLE POINTER SAVE AREA
+SAVOUTN  DC    F'0'             OUTPUT NODE TABLE POINTER SAVE AREA
+DIVISOR  DC    F'0'             MODULA DIVISOR
+LASTMOD  DC    F'0'             LAST MODULA
+MODULA   DC    F'0'             MODULA
+DATAORGN DC    F'0'             NEW TREE ORIGIN
+HIESTKEY DC    F'0'             HIEST NODE KEY VALUE
+NODENUM  DC    F'0'             BINARY NODE NUMBER FOR TREE MANAGER
+NODECOUN DC    F'0'             TREE NODE COUNT
+DEBNAME  DC    CL8'INITIAL'     GETMAINED AREA NAME FOR DEBUGGING
+*
+***********************************************************************
+*         SUBROUTINE RETURN AND REGISTERS TEMPORAL SAVE AREAS
+***********************************************************************
+PRISAV   DS    F                PRINT RETURN ADDR
+FINDNSAV DS    F                FINDNEXT RETURN ADDRESS SAVE AREA
+FINDPSAV DS    F                FINDPRIO RETURN ADDRESS SAVE AREA
+INSESAV  DS    F                INSERT RETURN ADDRESS SAVE AREA
+PARTASAV DS    F                PARTIAL ASCENDING REP RET SAVE AREA
+PARTDSAV DS    F                PARTIAL DESCENDING REP RET SAVE AREA
+REPASAV  DS    F                ASCENDING REP RET SAVE AREA
+REPDSAV  DS    F                DESCENDING REP RET SAVE AREA
+REPHSAV  DS    F                HORIZONTAL REP RET SAVE AREA
+REPVSAV  DS    F                VERTICAL REP RET SAVE AREA
+MAKENSAV DS    F                MAKE NODE RET SAVE AREA
+NEXTSAV  DS    F                FIND NEXT NODE RET SAVE AREA
+NEXTRR   DS    F                FIND NEXT SAVE REGS
+PRIOSAV  DS    F                FIND PRIOR NODE RET SAVE AREA
+PRNDSAV  DS    F                PRINT NODE RET SAVE AREA
+PRND1SAV DS    F                PRINT NODE RET SAVE AREA
+ACCUSAV  DS    F                ACCUMULATE ACCESS CNT RET SAVE AREA
+VERTSAV  DS    F                VERTICAL LINE PRINT RET SAVE AREA
+VERTRR   DS    4F               VERTICAL LINE PRINT SAVE WORK REGS
+DELEKSAV DS    F                DELETE ROUTINE SAVE RET ADDR
+LASTSAV  DS    F                LAST (HIEST) SAVE RET ADDR
+LOWESAV  DS    F                LOWEST SAVE RET ADDR
+INIT1SAV DS    F                INIT1ST SAVE RET ADDR
+INITASAV DS    F                INITALW SAVE RET ADDR
+VALKSAV  DS    F                INPUT KEY VALIDATION ROUT RET SAV AREA
+OPENSAV  DS    F                OPENFIL SAVE RET ADDR
+KEYDSAV  DS    F                KEYDATA SAVE RET ADDR
+EXITSAV  DS    F                EXIT ROUTINE RET ADDR SAVE AREA
+USCRSAV  DS    F                USFILMAP SAVE RET ADDR
+CLOSSAV  DS    F                CLOSFIL SAVE RET ADDR
+DATASAV  DS    F                DATA LOAD & PRINT SAVE RET ADDR
+COUNSAV  DS    F                NODE COUNT SAVE RET ADDR
+SKIPSAV  DS    F                SKIPFEW SAVE RET ADDR
+*
+***********************************************************************
+*         SUBROUTINE RETURN AND REGISTERS TEMPORAL SAVE AREAS
+***********************************************************************
+         DC    C'HERE IS DELETE WORDS'
+DELEND   DS    F                DELETING NODE ADDR
+HISONND  DS    F                HI SON NODE ADDR
+LOSONND  DS    F                LO SON NODE ADDR
+PAREND   DS    F                PARENT NODE ADDR
+NEXTND   DS    F                NEXT (REPLACING) NODE ADDR
+LASTND   DS    F                LAST (HIEST) NODE ADDR
+LOWEND   DS    F                LOWEST NODE ADDR
+KEYPARM  DS    F                JCL PARAMETER NODE KEY
+*
+***********************************************************************
+*         APPLICATION WORK FIELDS (TO BE PASSED TO DBG)
+*         THERE IS A ROW/COL COORD FLD GROUP FOR EVERY INPUT FIELD
+*         WHERE THE USER WANTS THE DATA REUTRNED FROM VTAM
+***********************************************************************
+COMMLOC  DC    CL4'0538'      COMMANDS SCREEN LOCATION (ROW/COL)
+COMMDAT  DC    CL4' '         COMMANDS DATA
+NODELOC  DC    CL4'0551'      NODE NUMBER SCREEN LOCATION (ROW/COL)
+NODEDAT  DC    CL3' '         NODE NUMBER DATA
+DELIADR  DC    X'0000'        DATA DELIMETER ADDR
+*
+***********************************************************************
+*         ONLINE SAMPLE APPLICATION SWITCHES & FIELDS
+***********************************************************************
+MSGWORK  DC    CL23' '        MESSAGE WORK AREA
+MSGLEN   DC    C'78'          MESSAGE WORK AREA LENGTH
+COMMLEN  DC    C'4'           COMMAND FIELD LENGTH
+PROSWRK  DC    CL3' '         PROCESSING SWITCH WORK FIELD
+COMMVAL  DC    C' '           VALID KEY DATA INDICATOR SWITCH
+FIRSTIME DC    C' '           1ST TIME ARROUND INDICATOR SWITCH
+KEYTIME  DC    C' '           FILE KEY ENTRY TIME IND SWITCH
+UPPER    DC    C'U'           UPPER CASE INDICATOR
+KEYRESPN DS    C' '           EXIT (PF3) PROGRAM REQUEST IND
+INPUTPAR DS    F              INPUT PARAMETERS ADDR
+ASCEDESC DC    C' '           ASCENDING OR DESCENDING ORDER (BLANK=ASC)
+*
+***********************************************************************
+*         OUTPUT APPLICATION PARAMETER LIST
+***********************************************************************
+OUTPARMS EQU *                 PARAMETERS TO BE PASSED TO DBG
+CLEARSC  DC    C'C'            CLEAR SCREEN ORDER
+CLSCORD  DC    CL8'05012480'   CLEAR COORDINATES
+CURROW   DC    CL2'05'         INCERT ROW
+CURCOL   DC    CL2'38'         INCERT COLUMN
+BOXTR    DC    CL2'06'         BOX TOP ROW
+BOXTLC   DC    CL2'01'         BOX TOP LEFT COLUMN
+BOXBR    DC    CL2'24'         BOX BOTTOM ROW
+BOXBRC   DC    CL2'80'         BOX BOTTOM RITE COLUMN
+BOXCHR   DC    CL8'        '   BOX CHARACTERS
+RESET    DC    C' '            SCREEN RESET (Y/N)
+*
+***********************************************************************
+*         CASE PARAMETER LIST
+***********************************************************************
+CASEPARM DC    A(UPPER)     UPPER CASE INDICATOR ADDR
+         DC    A(COMMDAT)   UPPER CASE DATA ADDR
+         DC    X'80'        LAST PARAMETER IN LIST IND
+         DC    AL3(COMMLEN) UPPER CASE DATA LENGTH
+*
+CENTPARM DC    A(MSGWORK)   MESSAGE CENTER WORK FIELD
+         DC    X'80'        LAST PARAMETER IN LIST IND
+         DC    AL3(MSGLEN)  MESSAGE CENTER WORK FIELD LENGTH
+*
+DBGPARM  DC    A(SCRMAP)    SCREEN AREA ADDRESS
+         DC    A(SCRMAPE)   SCREEN AREA DELIMITER
+         DC    A(OUTPARMS)  BINOD PROGRAM OUTPUT DBG PARAMETERS
+         DC    A(COMMLOC)   COMMAND FIELD SCR ROW COL COORDINATES
+         DC    A(COMMDAT)   COMMAND FIELD ADDR
+         DC    A(NODELOC)   NODE FIELD SCREEN ROW COL COORDINATES
+         DC    A(NODEDAT)   NODE FIELD ADDR
+         DC    X'80'        LAST PARAMETER IN LIST IND
+         DC    AL3(DELIADR) DELIMITER ADDRESS
+         DC    A(0)         DELIMITER ADDRESS
+*
+HELPARM  DC    A(HELPLCNT)  HELP LINE COUNT
+         DC    A(SCRMAP)    SCREEN AREA ADDRESS
+         DC    A(SCRMAPE)   SCREEN AREA DELIMITER
+         DC    A(HELPLIST)  HELP LIST START ADDRESS
+         DC    X'80'        LAST PARAMETER IN LIST IND
+         DC    AL3(HELPEND) HELP LIST END ADDRESS
+*
+NUMPARM  DC    A(NODEDAT)   NUMERIC FIELD TO BE TESTED
+         DC    A(NODEOUT)   OUTPUT NUMERIC FIELD FROM VALNUM ROUT
+         DC    X'80'        LAST PARAMETER IN LIST IND
+         DC    AL3(NUMVPARM) NUMERIC VALIDATION PARAMETERS
+*
+***********************************************************************
+*         SCREEN LINE COUNT & ADDRESS POINTERS
+***********************************************************************
+SCRLINCN DC    F'0'         SCREEN LINE COUNTER (WRAPS FROM 24 TO 1)
+SCRCOLCN DC    F'0'         SCREEN COLUMN WITHIN LINE
+SCRLENCN DC    F'0'         LENGTH OF DATA TO BE MOVED
+SCRLINAD DC    F'0'         SCRENN LINE ADDRESS
+*
+***********************************************************************
+*         THIS ARE THE PARMETERS TO BE PASSED TO THE NUMBER VALIDATION
+*         ROUTINE.
+***********************************************************************
+NODEOUT  DC    CL3' '       OUTPUT NUMERIC FIELD FROM VALNUM ROUT
+NUMVPARM DS    0F           NUMERIC VALIDATION PARAMETERS
+NUMINLEN DC    H'3'         NUMERIC INPUT FIELD LENGTH
+NUMOULEN DC    H'3'         NUMERIC OUTPUT FIELD LENGTH
+NUMDECS  DC    H'0'         NUMERIC DECIMAL POSITIONS
+NUMSIGN  DC    C'N'         NUMERIC SIGN
+NUMRESUL DC    C' '         NUMERIC RESULT "S"=ACCEPTED "N"=REJECTED
+*
+***********************************************************************
+*         THIS AREA DEFINES THE HELP SCREEN BOX, BY THE USE OF THE
+*         "SHOWLIST" DBG FUNCTION. EVERY HELP LINE, (INCLUDING BOX),
+*         IS DEFINED AS A LIST OF STRINGS TO BE PRINTED AT THE TERMINAL
+***********************************************************************
+HELPLCNT DC    CL3'015'     HELP LINE COUNT
+HELPLIST EQU   *
+ DC CL7'0845034',CL34'-------- HELP INFORMATION --------' R/C/LEN TEXT
+ DC CL7'0945034',CL34'|   +--- COMMAND NAME            |' R/C/LEN TEXT
+ DC CL7'1045034',CL34'|   |  | +-- USE NODE NUMBER     |' R/C/LEN TEXT
+ DC CL7'1145034',CL34'|   V  | V | COMMAND DESCRIPTION |' R/C/LEN TEXT
+ DC CL7'1245034',CL34'|------+---+---------------------|' R/C/LEN TEXT
+ DC CL7'1345034',CL34'| DELE | Y | DELETE NODE         |' R/C/LEN TEXT
+ DC CL7'1445034',CL34'| INCL | Y | INCLUDE NODE        |' R/C/LEN TEXT
+ DC CL7'1545034',CL34'| ASCE |   | ASCENDING LIST      |' R/C/LEN TEXT
+ DC CL7'1645034',CL34'| DESC |   | DESCENDING LIST     |' R/C/LEN TEXT
+ DC CL7'1745034',CL34'| SAMP |   | SAMPLE TREE TABLE   |' R/C/LEN TEXT
+ DC CL7'1845034',CL34'| BALA |   | BALANCE TREE TABLE  |' R/C/LEN TEXT
+ DC CL7'1945034',CL34'| LIST |   | LIST TREE TABLE     |' R/C/LEN TEXT
+ DC CL7'2045034',CL34'| ERAS |   | ERASE TREE TABLE    |' R/C/LEN TEXT
+ DC CL7'2145034',CL34'| END  |   | END PROCESS         |' R/C/LEN TEXT
+ DC CL7'2245034',CL34'----------------------------------' R/C/LEN TEXT
+HELPEND  EQU   *            HELP LIST END ADDRESS
+*
+***********************************************************************
+*         THIS AREA MUST BE PASSED TO DBG
+*         THIS IS WHERE YOU DEFINE THE SCREEN LINES (24 X 80 = 1920)
+***********************************************************************
+         DC    C'HERE  IS  SCREEN MAP'
+SCRMAP   DS    0CL1920         SCREEN OUTPUT BUFFER
+         DC    CL80' '                                   LINE 0
+         DC    CL80' '                                   LINE 1
+         DC    CL80' '                                   LINE 2
+         DC    CL80' '                                   LINE 3
+         DC    CL80' '                                   LINE 4
+*
+TITLATT1 DC    X'15'                                   - LINE 5
+TITLDAT  DC    CL26'VERTICAL NODE REPORT'              - LINE 5
+CMDATT1  DC    X'00'                                   - LINE 5
+         DC    CL8'COMMAND:'                           - LINE 5
+CMDATT2  DC    X'00'                                   - LINE 5
+         DC    CL4' '                                  - LINE 5
+CMDATT3  DC    X'00'                                   - LINE 5
+         DC    CL1' '                                  - LINE 5
+CODATT1  DC    X'00'                                   - LINE 5
+         DC    CL5'NODE:'                              - LINE 5
+CODATT2  DC    X'00'                                   - LINE 5
+         DC    CL3' '                                  - LINE 5
+CODATT3  DC    X'00'                                   - LINE 5
+         DC    CL2' '                                  - LINE 5
+MSGDAT   DC    CL23' '                                 - LINE 5
+TITLATT2 DC    X'11'                                   - LINE 5
+*
+         DC    CL80' '                                   LINE 6
+         DC    CL80' '                                   LINE 7
+         DC    CL80' '                                   LINE 8
+         DC    CL80' '                                   LINE 9
+         DC    CL80' '                                   LINE 10
+         DC    CL80' '                                   LINE 11
+         DC    CL80' '                                   LINE 12
+         DC    CL80' '                                   LINE 13
+         DC    CL80' '                                   LINE 14
+         DC    CL80' '                                   LINE 15
+         DC    CL80' '                                   LINE 16
+         DC    CL80' '                                   LINE 17
+         DC    CL80' '                                   LINE 18
+         DC    CL80' '                                   LINE 19
+         DC    CL80' '                                   LINE 20
+         DC    CL80' '                                   LINE 21
+         DC    CL80' '                                   LINE 22
+         DC    CL80' '                                   LINE 23
+*
+SCRMAPE  DC    X'00'           DELIMITER VALUE
+*
+***********************************************************************
+*         COMMAND TABLE
+***********************************************************************
+COMMTAB  DC    CL4'DELE'   X    DELETE NODE COMMAND
+         DC    CL4'INCL'   X    INCLUDE NODE COMMAND
+         DC    CL4'ASCE'        ASCENDING NODE LIST COMMAND
+         DC    CL4'DESC'        DESCENDING NODE LIST COMMAND
+         DC    CL4'SAMP'        SAMPLE TREE TABLE LOAD COMMAND
+         DC    CL4'BALA'        BALANCE TREE TABLE COMMAND
+         DC    CL4'LIST'        LIST TREE TABLE COMMAND
+         DC    CL4'ERAS'        ERASE TREE TABLE COMMAND
+         DC    CL4'END'         DELETE NODE COMMAND
+         DC    CL4' '           TABLE DELIMITER
+***********************************************************************
+*** EL SIGUIENTE DSECT DESCRIBE LA ESTRUCTURA DE DATOS QUE          ***
+*** SE CONSTRUYE DINAMICAMENTE PARA CONTENER LA INFORMACION         ***
+*** DE CADA "TIPO" DE REGISTRO. CADA LONGITUD DIFERENTE ES UN TIPO. ***
+*** EL TIPO LO CONSTITUYE LA LONGITUD.                              ***
+***********************************************************************
+TYPENDE  DSECT
+TYPDEB   DS    CL8              MESSAGE "GETMAIND" FOR DEBUGGING
+TYPTOP   DS    A                POINTER TO "PARENT" NODE
+TYPLOW   DS    A                POINTER TO "LOWER" SON NODE
+TYPHIGH  DS    A                POINTER TO "HIGHER" SON NODE
+TYPKEY   DS    F                NODE KEY
+TYPCNT   DS    F                NODE TYPE COUNT
+TYPLOC   DS    F                NODE PRINT LOCATION
+TYPNLEN  EQU   *-TYPENDE        NODE LENGTH (32)
+*
+***********************************************************************
+*         INPUT APPLICATION PARAMETER LIST
+***********************************************************************
+APPLPARM DSECT              COMMON PROCEDURE PARAMETER LIST
+SYSCODE  DS    CL8   ' '    SAVE SYSTEM NAME
+LEVCODE  DS    CL20  '00000000000000000000' CHARACTER LEVEL CODE
+SUBCODE  DS    CL8   ' '    SUB-PROCEDURE CODE (NOT USED YET)
+PROCTIT  DS    CL62  ' '    PROCESS TITLE
+INPUTKEY DS    C     ' '    INPUT KEY TO PASS TO APPLICATION
+PROSWTCH DS    CL3   ' '    'END'=DON'T GO BACK '   '=GO BACK
+DECCURCL DS    CL4   '0000' APPLICATION CURSOR LOCATION (COBOL)
+BINCURCL DS    XL2   '0000' APPLICATION CURSOR LOCATION (ASM)
+*
+         COPY  \R42\CPY\EQUREGS.CPY
+*
+*******************************************************
+*                   REFERENCES                        *
+*******************************************************
+*        MODULE - SHOW STRING IN ROW/COL              *
+*        SYSTEM - XMVTAM1 (DBG)                       *
+*        AUTHOR - BERNABE LLOVERA                     *
+*        DATE   - NOVEMBER 1991                       *
+*                                                     *
+*     PROGRAM ENTRY POINT: SHOW                       *
+*                          SHOWLIST                   *
+*     OTHER ENTRIES:                                  *
+*                                                     *
+*     EXTERNAL REFERENCES:                            *
+*                                                     *
+*******************************************************
+*        ENTRY SHOW,SHOWLIST
+*        EXTRN
+*
+*        PRINT NOGEN
+         TITLE ' SHOW STRING IN ROW/COL         * * *   SHOW  * * *'
+SHOWPARM DSECT
+ROW      DS   CL2         SCREEN ROW
+COLUMN   DS   CL2         SCREEN COLUMN
+LENGTH   DS   CL3         STRING LENGTH (UP TO 255)
+STRING   DS   C           DATA STRING
+*******************************************************
+*        SHOW ROUTINE
+*******************************************************
+SHOW     CSECT
+         USING SHOW,R15
+         LA    R9,0    4        SET SHOW ENTRY INDICATOR
+         B     SHOWON           JUMP TO ENTER PROCEDURE
+         ENTRY SHOWLIST
+SHOWLIST EQU   *
+         LA    R9,0             SET SHOWLIST ENTRY INDICATOR
+SHOWON   DS    0H
+*        XR    R9,R9            TEST PARAMETER LIST OPTION
+         DROP  R15
+XXD      STM   R14,R12,12(R13) SAVE IN CALLERS SAVE AREA
+         LR    R12,R15         USE ENTRY ADDRESS
+         USING XXD,R12,R11
+         LA    R15,XXDSAV1     GET PROGRAMS SAVE AREA ADDR
+         ST    R13,4(R15)      SAVE CALLERS SAVE AREA ADDR
+         ST    R15,8(R13)      SAVE PROGRAMS SAVE AREA IN CALLERS AREA
+         LR    R13,R15         GET PROGRAMS SAVE AREA ADDR
+         L     R11,XXDSAV2     LOAD 2ND BASE REG
+         B     AROXXD          SKIP SAVE AREA FLD
+XXDSAV1  DS    18F             RETURN SAVE REGS AREA
+XXDSAV2  DC    A(XXD+4096)     2ND BASE REG ADDR
+         DC    CL12'<<BINOD>>' DUMP PROGRAM ID
+AROXXD   DS    0H
+*
+*        ENTER SAVE=YES,SAVAREA=SAVEAREA,OS=MVS
+*
+*******************************************************
+*  MODULE PARAMETERS.
+*******************************************************
+*  SHOWLIST: PROCEDURE PARAMETER LIST:
+*  1. '999' = COUNT OF (COORDINATES|LENGTH|VALUE) FOR SHOW PROCEDURE
+*           *********************************************
+*           *  SHOW: PROCEDURE PARAMETER LIST:
+*  2.       *  1. MAP ADDRESS
+*  3.       *  2. MAP DELIMITER ADDRESS
+*  4.       *  3. PARAMETER LIST ADDRESS
+*  5.       *  4. PARAMETER LIST DELIMITER ADDRESS
+*******************************************************
+*  PARAMETERS LIST DATA DESCRIPTION:
+*     ON SHOWLIST ENTRY = COMMAND COUNT ON 1ST PARAMETER
+*     ON SHOW ENTRY     = ONLY 1 SHOW COMMAND
+*     EXAMPLE:
+*       C'0608026ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+*        WERE:  '06'     = SCREEN ROW
+*               '08'     = SCREEN COLUMN
+*               '026'    = STRING LENGTH (UP TO 255)
+*               'ABC...' = DATA STRING
+*       C'0608026ABCD.....
+*******************************************************
+*
+*******************************************************
+* CHECK PARAMETERS
+*******************************************************
+         XC    RETCODE1,RETCODE1  RESET PROGRAM RETURN CODE
+*        LA    R1,TESTPAR1        GET TEST PARAMETERS ADDR
+*        LA    R1,TESTPAR2        GET TEST PARAMETERS ADDR
+         LTR   R9,R9              WAS ENTRY SHOWLIST USED?
+         BNZ   SHOWENT            NO, GO TO SHOW ENTRY
+         L     R2,0(R1)           GET SHOW LIST COUNT ADDR
+         LA    R10,1              SHOW ERROR
+         LTR   R2,R2              IS THIS THE LAST PARAMETER?
+         BL    SHOWEX             YES, WRONG, EXIT
+         LA    R1,4(R1)           BUMP FOR SHOW PARMS START
+         B     SHOWENT1           GO SAVE ADDR
+SHOWENT  DS    0H
+         LA    R5,1               PROCESS ONLY ONE SHOW COMMAND
+         B     SHOWPROC           COUNT READY PROCEED
+*
+SHOWENT1 DS    0H
+         LA    R0,3               NUMBER FIELD LENGTH
+******** LA    R2,DIGITS          NUMBER FIELD ADDRESS
+         BAL   R14,NUMBERS        VALIDATE NUMBER CHAR FIELD (F1-F9)
+         LA    R10,2              SHOW ERROR
+         LTR   R15,R15            VALID CHAR NUMBERS?
+         BNZ   SHOWEX             NO, EXIT
+         PACK  DOBLES,0(3,R2)     CONVERT TITLE COUNT
+         CVB   R5,DOBLES          TO BINARY TO USE AS LOOP COUNT
+         LA    R10,3              SHOW ERROR
+         LTR   R5,R5              VALID POSITIVE NUMBER?
+         BZ    SHOWEX             NO, EXIT
+*
+SHOWPROC DS    0H
+         L     R2,0(R1)           GET MAP ADDRESS
+         LA    R10,4              SHOW ERROR
+         LTR   R2,R2              IS THIS THE LAST PARAMETER?
+         BL    SHOWEX             YES, WRONG OR LAST PARAM
+         ST    R2,MAPADDR         SAVE MAP ADDRESS
+*
+         L     R2,4(R1)           GET MAP DELIMITER ADDRESS
+         LA    R10,5              SHOW ERROR
+         LTR   R2,R2              IS THIS THE LAST PARAMETER?
+         BL    SHOWEX             YES, WRONG OR LAST PARAM
+         ST    R2,MAPLIMIT        SAVE MAP DELIMITER ADDRESS
+*
+         L     R2,8(R1)           GET PARAMETER LIST ADDRESS
+         LA    R10,6              SHOW ERROR
+         LTR   R2,R2              IS THIS THE LAST PARAMETER?
+         BL    SHOWEX             YES, WRONG OR LAST PARAM
+         ST    R2,LISTADDR        SAVE PARMETER LIST ADDR
+         LR    R11,R2             GET FIELD ADDR INTO BASE REG
+         USING SHOWPARM,R11       ADDRESS INPUT PARAMETERS
+*
+         L     R2,12(R1)          GET PARAMETER LIST DELIMITER ADDR
+         LA    R10,7              SHOW ERROR
+         LTR   R2,R2              IS THIS THE LAST PARAMETER?
+         BNL   SHOWEX             NO, WRONG, MUST BE LAST PARAM
+         ST    R2,LISLIMIT        SAVE PARAMETER LIST DELIMITER ADDR
+         NI    LISLIMIT,X'00'     ERASE PARAMETER END MARK
+*
+SHOWLP   DS    0H
+         MVC   NUMERALS(7),ROW    USE A COPY OF INPUT DATA
+         LA    R0,7               NUMBER FIELD LENGTH
+         LA    R2,NUMERALS        NUMBER FIELD ADDRESS
+         BAL   R14,NUMBERS        VALIDATE NUMBER CHAR FIELD (F1-F9)
+         LA    R10,8              SHOW ERROR
+         LTR   R15,R15            VALID CHAR NUMBERS?
+         BNZ   SHOWEX             NO, EXIT
+         LA    R2,NUMERALS        INPUT CHARACTER DIGITS
+         LA    R3,WRKROW          OUTPUT HEX DIGITS
+         LA    R0,2               OUTPUT LENGTH
+         BAL   R14,SHRINK         SHRINK 2 NUMBERS IN 1 & MOVE
+         LA    R10,9              SHOW ERROR
+         CLI   WRKROW,X'01'       ROW LESS THAN 1?
+         BL    SHOWEX             YES, EXIT
+         CLI   WRKROW,X'24'       ROW HIER THAN 24?
+         BH    SHOWEX             YES, EXIT
+         CLI   WRKCOL,X'01'       COLUMN LESS THAN 1?
+         BL    SHOWEX             YES, EXIT
+         LA    R10,10             SHOW ERROR
+         CLI   WRKCOL,X'80'       COLUMN HIER THAN 80?
+         BH    SHOWEX             YES, EXIT
+         PACK  DOBLES,LENGTH      CONVERT LENGTH
+         CVB   R4,DOBLES          TO BINARY
+         LA    R10,11             SHOW ERROR
+         C     R4,=F'255'         DID WE TRESSPASS THE LIMIT?
+         BH    SHOWEX             YES, EXIT
+*
+         MVC   COL1,WRKCOL        GET COL INTO CONV FIELD
+         MVC   ROW1,WRKROW        GET ROW INTO CONV FIELD
+         LA    R1,COL1            GET CONVERTION PARAM LIST ADDR
+         BAL   R14,BUFF327B       GO GET BUFFER DISPLACEMENT
+         L     R6,MAPADDR         OUTPUT MAP ADDR
+         LA    R6,0(R15,R6)       BUMP TO OFFSET
+         LA    R7,0(R4,R6)        BUMP OFFSET + DATA LENGTH
+         LA    R10,12             SHOW ERROR
+         C     R7,MAPLIMIT        DID WE THRESSPASS THE LIMIT?
+         BH    SHOWEX             YES, EXIT
+*
+         BCTR  R4,0               ADJUST FOR EX
+         EX    R4,SHOWTXT         SHOW TEXT ON PANEL
+         LA    R11,8(R4,R11)      BUMP TO NEXT PARM ON LIST
+         LA    R10,12             SHOW ERROR
+         C     R11,LISLIMIT       DID WE TRESSPASS THE LIMIT?
+         BH    SHOWEX             YES, EXIT
+         BCT   R5,SHOWLP          DO TILL LIST END
+         LA    R10,0              SHOW GOOD CONDITION
+*
+SHOWEX   DS    0H
+         ST    R10,RETCODE1       SHOW RETURN CODE
+*        ABTERM 222
+*        EXIT  RESTORE=YES,SAVAREA=SAVESCR,RC=YES
+         EXIT  SAVE=YES,RC=10
+*
+SHOWTXT  MVC   0(*-*,R6),STRING   MOVE STRING TO SCREEN MAP
+*
+*******************************************************
+*     SHRINK: CONVERTS TWO CHAR DIGIT INTO ONE & MOVE *
+*     ON ENTRY: R2 = INPUT COUPLE OF BYTES            *
+*               R3 = OUTPUT SINGLE BYTE               *
+*               R0 = OUTPUT FIELD LENGTH              *
+*     ON EXIT:  CHARACTERS MOVED TO OUTPUT HEX DIGITS *
+*******************************************************
+SHRINK   DS    0H
+         ST    R14,SVSHR           PUSH RET ADDR
+         STM   R1,R6,SHRRR         PUSH REGS
+         LR    R4,R0              INPUT LENGTH
+*
+SHRINKLP DS    0H
+         NC    0(2,R2),=X'0F0F'   RESET ZONES TO 0
+         SR    R5,R5              FIX FOR IC
+         IC    R5,0(R2)           GET 1ST NUM CHAR
+         LR    R6,R5              GET A COPY FOR COMPUTE
+         MH    R6,=H'10'          SHIFT TO THE TENTH
+         IC    R5,1(R2)           GET 2ND NUM CHAR
+         AR    R6,R5              GET TENTH + UNITS
+         STC   R6,0(R3)           STORE SHRUNK DIGITS
+         LA    R2,2(R2)           BUMP INPUT
+         LA    R3,1(R3)           BUMP OUTPUT
+         BCT   R4,SHRINKLP        DO LOOP R4 TIMES
+*
+         LM    R1,R6,SHRRR         POP REGS
+         L     R14,SVSHR           POP RET ADDR
+         BR    R14
+*
+*******************************************************
+*    NUMBERS: TEST IF VALID NUMBER CHARACTERS (F1-F9) *
+*     ON ENTRY: R2 = INPUT FIELD ADDRESS              *
+*               R0 = OUTPUT FIELD LENGTH              *
+*     ON EXIT:  R15 = 0 = OK | NOT NUMERIC            *
+*******************************************************
+NUMBERS  DS    0H
+         ST    R14,SVNUM          PUSH RET ADDR
+         STM   R1,R3,NUMRR        PUSH REGS
+         LR    R3,R0              INPUT LENGTH
+         LA    R15,1              DEFAULT TO WRONG RETURN CODE
+*
+NUMLP    DS    0H
+         CLI   0(R2),C'0'         LOWER THAN 0?
+         BL    NUMEX              YES, EXIT
+         CLI   0(R2),C'9'         GREATER THAN 9?
+         BH    NUMEX              YES, EXIT
+         LA    R2,1(R2)           BUMP INPUT ADDR
+         BCT   R3,NUMLP           DO TILL LENGTH EXAUSTED
+         LA    R15,0              SHOW GOOD NUMBER RET CODE
+*
+NUMEX    DS    0H
+         LM    R1,R3,NUMRR        POP REGS
+         L     R14,SVNUM          POP RET ADDR
+         BR    R14
+*
+***********************************************************************
+*** OBTIENE LA DIRECCION DE BUFFER DADOS FILA, COLUMNA Y            ***
+*** CANTIDAD DE COLUMNAS POR FILA.                                  ***
+***   ENTRADA: R1 -> DIRECCION DE 4 BYTES CONTIGUOS ALINEADOS       ***
+***                  |C|F|CF|  F:FILA; C:COLUMNA; CF:COLS/FILA      ***
+***   SALIDA : R15-> DIRECCION DE BUFFER                            ***
+***   INVOCACION:   BAL R14,BUFF327B                                ***
+***********************************************************************
+BUFF327B DS    0H
+         ST    R14,SVBFF         PUSH RET ADDR
+         STM   R1,R2,BFFRR       PUSH REGS
+         SR    2,2               CLEAR WORK REG
+         IC    2,0(1)            GET COLUMN
+         BCTR  2,0               MINUS 1 FOR ADD
+         SR    15,15             CLEAR WORK REG
+         IC    15,1(1)           GET ROW
+         BCTR  15,0              MINUS 1 FOR MULT
+         MH    15,2(1)           TIMES NO OF COLS/ROW
+         AR    15,2              RESULT IN R15
+         LM    R1,R2,BFFRR       POP REGS
+         L     R14,SVBFF         POP RET ADDR
+         BR    R14
+*
+         LTORG
+*
+*******************************************************
+*     VARIABLES & CONSTANTS                           *
+*******************************************************
+*SAVEAREA DS    18F             PROGRAM SAVE AREA
+*******************************************************
+SVSHR    DS    F                SHRINK PUSH RET ADDR
+SHRRR    DS    6F               SHRINK PUSH REGS
+SVBFF    DS    F                BUFF327B PUSH RET ADDR
+BFFRR    DS    2F               BUFF327B PUSH REGS
+SVNUM    DS    F                NUMBERS PUSH RET ADDR
+NUMRR    DS    3F               NUMBERS PUSH REGS
+*******************************************************
+DOBLES   DS    D          BINARY CONVERTION FIELD
+COL1     DC    X'00'      WORKING COLUMN COORDINATE
+ROW1     DC    X'00'      WORKING ROW COORDINATE
+COLSPROW DC    H'80'      80 COLUMNS PER ROW
+WRKROW   DC    X'00'      WORKING ROW COORDINATE
+WRKCOL   DC    X'00'      WORKING COLUMN COORDINATE
+*
+MAPADDR  DC    F'0'       MAP ADDRESS
+MAPLIMIT DC    F'0'       MAP DELIMITER ADDRESS
+LISTADDR DC    F'0'       PARMETER LIST ADDR
+LISLIMIT DC    F'0'       PARAMETER LIST DELIMITER ADDR
+*******************************************************
+         DC    CL20'HERE IS SHOW RETCODE1'
+RETCODE1 DC    F'0'       PROGRAM RETURN CODE
+NUMERALS DC    CL7'0000000' NUMERAL VALIDATION FIELD
+*******************************************************
+* TESTPAR1 DC    A(LCNT)         1ST PARAMETER LIST COUNT
+* TESTPAR2 DC    A(MAP)          2ND MAP ADDRESS
+*          DC    A(MAPDEL)       3RD MAP DELIMITER ADDRESS
+*          DC    A(LIST)         4TH PARAMETER LIST ADDRESS
+*          DC    X'80'           PARAMETER LIST END
+*          DC    AL3(LISTDEL)    5TH PARAMETER LIST DELIMITER ADDRESS
+*          DC    CL15'HERE IS INP FLD'
+* LCNT     DC    CL3'002'        SHOW LIST COUNT
+* LIST     EQU   *               SHOW LIST ADDRESS
+*          DC    CL2'01'         ROW
+*          DC    CL2'01'         COLUMN
+*          DC    CL3'026'        FIELD LENGTH
+*          DC    CL26'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+*          DC    CL2'24'         ROW
+*          DC    CL2'55'         COLUMN
+*          DC    CL3'026'        FIELD LENGTH
+*          DC    CL26'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+* LISTDEL  EQU   *               LIST DELIMITER ADDRESS
+* ******************************************************
+*          DC    CL15'HERE IS OUT FLD'
+* MAP      DC    1920C' '        MAP BUFFER
+* MAPDEL   EQU   *               MAP DELIMITER
+*          DC    CL15'HERE IS OUT FLD'
+*******************************************************
+*                   REFERENCES                        *
+*******************************************************
+*        MODULE - NUMERIC VALIDATION                  *
+*        SYSTEM - XMVTAM1 (DBG)                       *
+*        AUTHOR - BERNABE LLOVERA                     *
+*        DATE   - NOVEMBER 1991                       *
+*                                                     *
+*     PROGRAM ENTRY POINT: VALNUM                     *
+*     OTHER ENTRIES:                                  *
+*                                                     *
+*     EXTERNAL REFERENCES:                            *
+*                                                     *
+*******************************************************
+*        ENTRY VALNUM
+*        PRINT NOGEN
+*          DATA SET VALNUM     AT LEVEL 001 AS OF 08/29/90
+         TITLE 'VALNUM - NUMERIC EDIT ROUTINE FOR ON-LINE PROGRAMS'
+*******************************************************
+*        VALNUM ROUTINE
+*******************************************************
+         SPACE 3
+***********************************************************************
+*        MODULE - NUMERIC EDIT ROUTINE
+*        SYSTEM - POPIMS
+*        AUTHOR - DAVID BARRY JONES  (LS3 LTD.)
+*        DATE   - SEPTEMBER 1983
+*
+*        THIS MODULE WILL VALIDATE ANY NUMERIC FIELD ENSURING THAT IT
+*        MEETS REQUIREMENTS OF LENGTH,SIGN AND DECIMAL PLACES SPECIFIED
+*        BY THE CALLING PROGRAM .IT WILL ACCEPT LEADING AND/OR TRAILING
+*        SPACES AND IF VALID ALIGN ,RIGHT JUSTIFY AND ZERO FILL THE
+*        VALUE IN THE OUTPUT FIELD.
+*
+*        THE MODULE IS PASSED THREE PARAMETERS
+*           1. FIELD TO BE VALIDATED.
+*           2. FIELD TO BE USED FOR OUTPUT.
+*           3. THE PARAMETER LIST CONTAINS
+*               LENGTH OF INPUT FIELD                  HALF-WORD
+*               LENGTH OF OUTPUT FIELD                 HALF-WORD
+*               NUMBER OF DECIMAL PLACES               HALF-WORD
+*               SIGN ALLOWED     - Y=VALID  N=ERROR     ONE BYTE
+*               RESULT INDICATOR - Y=VALID, N=ERROR     ONE BYTE
+*
+*
+*
+*        REGISTER USAGE
+*        R1    PARAMETER LIST FROM CALLING PROGRAM
+*        R2    BASE FOR PARMLIST DSECT
+*        R3    INPUT FIELD ADDRESSABLITY
+*        R4    OUTPUT FIELD ADDRESSABLITY
+*        R5    WORK REGISTER
+*        R6    WORK REGISTER
+*        R7    WORK REGISTER
+*        R8    WORK REGISTER
+*        R9    EXECUTE INSTRUCTION LENGTH REGISTER
+*        R10   EXECUTE INSTRUCTION TARGET REGISTER
+*        R11   EXECUTE INSTRUCTION SOURCE REGISTER
+*        R12   PROGRAM BASE REGISTER
+*
+***********************************************************************
+VALNUM   CSECT
+XXG      STM   R14,R12,12(R13) SAVE IN CALLERS SAVE AREA
+         LR    R12,R15         USE ENTRY ADDRESS
+         USING XXG,R12,R11
+         LA    R15,XXGSAV1     GET PROGRAMS SAVE AREA ADDR
+         ST    R13,4(R15)      SAVE CALLERS SAVE AREA ADDR
+         ST    R15,8(R13)      SAVE PROGRAMS SAVE AREA IN CALLERS AREA
+         LR    R13,R15         GET PROGRAMS SAVE AREA ADDR
+         L     R11,XXGSAV2     LOAD 2ND BASE REG
+         B     AROXXG          SKIP SAVE AREA FLD
+XXGSAV1  DS    18F             RETURN SAVE REGS AREA
+XXGSAV2  DC    A(XXG+4096)     2ND BASE REG ADDR
+         DC    CL12'<<VALNUM>>' DUMP PROGRAM ID
+AROXXG   DS    0H
+*
+***********************************************************************
+*
+*        CHECK CORRECT PARAMETERS HAVE BEEN RECEIVED
+*
+***********************************************************************
+         SPACE
+         L     R2,8(R1)                 POINT TO PARAMETER LIST
+         USING PARMLIST,R2
+         SPACE
+         MVI   STRNGVAL,C'N'            ASSUME STRING INVALID
+         SPACE 1
+*        STORE INPUT PARAMETERS
+         L     R3,0(R1)
+         ST    R3,INADDR                STORE INPUT ADDRESS
+         L     R3,4(R1)
+         ST    R3,OUTADDR               STORE OUTPUT ADDRESS
+         SPACE 3
+*                                       CHECK LENGTHS
+*        L     R14,OUTADDR              ***************************
+         LH    R3,INLEN
+*        MVI   0(R14),C'1'
+         CH    R3,=H'0'
+         BNH   EXIT                     MUST BE GREATER THAN 0
+*        MVI   0(R14),C'2'
+         CH    R3,=H'16'
+         BH    EXIT                     AND NOT GREATER THAN 16
+         SPACE
+         LH    R3,OUTLEN
+*        MVI   0(R14),C'3'
+         CH    R3,=H'0'
+         BNH   EXIT                     MUST BE GREATER THAN 0
+*        MVI   0(R14),C'4'
+         CH    R3,=H'16'
+         BH    EXIT                     AND NOT GREATER THAN 16
+         SPACE
+*                                       CHECK NUMBER OF DECIMAL PLACES
+         LH    R4,DECPLACE
+*        MVI   0(R14),C'5'
+         CH    R4,=H'0'
+         BL    EXIT                     MUST NOT BE LESS THAN 0
+*        MVI   0(R14),C'6'
+         CH    R4,INLEN
+         BNL   EXIT                     BUT LESS THAN INPUT LENGTH
+*        MVI   0(R14),C'7'
+         CH    R4,OUTLEN
+         BNL   EXIT                     AND LESS THAN OUTPUT LENGTH
+         SPACE 3
+*                                       SET UP WORK FIELD LENGTHS
+         MVC   WINLEN,INLEN
+         MVC   WOUTLEN,OUTLEN
+*                                       SET INTERNAL COUNTERS.
+SETI1    EQU   *
+*        SET DECIMAL POINT SWITCH
+         MVI   PNTALWD,C'S'             ASSUME DECIMAL POINT ALLOWED
+         MVI   NONZERO,C'N'             ASSUME ONLY TRAILING ZEROS
+         SPACE 1
+*        SET SIGN SWITCH
+         MVC   SGNALWD,SIGNV             MOVE SIGNV REQUIRED FROM PARMS
+         SPACE 1
+*        SET NEGATIVE VALUE SWITCH
+         MVI   NEGATE,C'N'              ASSUME VALUE POSITIVE
+         SPACE 1
+*        SET NUMERICS ALLOWED SWITCH
+         MVI   NUMALWD,C'S'             NUMERIC IS ALLOWED
+         SPACE 1
+*        SET DECIMAL PLACES PRESENT TO ZERO
+         MVC   DECPOS,WINLEN             SET DECPOS TO LAST BYTE
+         EJECT
+***********************************************************************
+*
+*        VALIDATE EACH CHARACTER IN INPUT FIELD FROM RIGHT TO LEFT
+*        MOVING VALID NUMERICS TO WORKAREA ,RECORD POSITION OF
+*        DECIMAL POINT AND RECORD NEGATIVE SIGN IF FOUND.
+*
+***********************************************************************
+         SPACE
+         L     R3,INADDR                LOAD ADDR INPUT TO R3
+         LA    R4,WORKAREA              LOAD ADDR WORKAREA TO R4
+         LH    R5,WINLEN                LOAD INPUT LENGTH TO R5
+         XR    R6,R6                    SET NUMERICS FOUND TO ZERO
+         XR    R7,R7                    SET TRAILING ZEROS FOUND
+         SPACE 1
+         AR    R3,R5                    SET R3 TO THE RIGHT MOST
+         SH    R3,=H'1'                         BYTE OF INPUT FIELD
+         SPACE 1
+         AR    R4,R5                    SET R4 TO THE RIGHT MOST
+         SH    R4,=H'1'                         BYTE OF OUTPUT FIELD
+         SPACE 1
+*       SET WORK AREA TO CHARACTER ZEROS
+         LR    R9,R5                    LENGTH FOR EX EXMVC
+         SH    R9,=H'1'
+         LA    R10,WORKAREA             TARGET ADDRESS FOR EX EXMVC
+         LA    R11,ZEROS                SOURCE ADDRESS FOR EX EXMVC
+         EX    R9,EXMVC
+         SPACE
+LOOPSTRT EQU   *                        START OF VALIDATION LOOP
+         CLC   0(1,R3),DECDLM           INPUT DECIMAL DELIMITER
+         BNE   TESTSIGN                 NO
+*        MVC   0(2,R14),=C'09'
+         CLI   PNTALWD,C'S'             FIRST DELIMITER AND ALLOWED
+         BNE   EXIT                     NO
+*        CONSIDER INPUT TO END BEFORE FIRST TRAILING ZER0
+         SR    R6,R7                    SUBTRACT TRAILING ZEROS FROM
+         SH    R7,WINLEN                . NUMBER OF NUMERICS FOUND
+         LPR   R7,R7                    . AND FROM INPUT FIELD
+         STH   R7,WINLEN                . LENGTH
+         SPACE 1
+         STH   R5,DECPOS                NOTE POSITION OF DEC POINT
+         MVI   PNTALWD,C'N'             NO MORE PERMITTED
+         B     NEXTCHAR                 GO FOR NEXT
+         SPACE
+TESTSIGN EQU   *
+         CLI   0(R3),C'-'               INPUT MINUS SIGN
+         BNE   TESTSPCE                 NO
+*        MVC   0(2,R14),=C'10'
+         CLI   SGNALWD,C'S'             FIRST SIGN AND ALLOWED
+         BNE   EXIT                     NO
+         MVI   NEGATE,C'S'              SET NEGATIVE SWITCH
+         MVI   SGNALWD,C'N'             NO MORE PERMITTED
+         CH    R6,=H'0'                 ANY NUMERICS FOUND
+         BE    TRLBLK                   NO
+         MVI   NUMALWD,C'N'             LEADING SIGN NO MORE NUMERICS
+         MVI   PNTALWD,C'N'             NO MORE DEC POINTS ALLOWED
+         B     NEXTCHAR
+         SPACE 1
+TESTSPCE EQU   *
+         CLI   0(R3),X'40'              INPUT IS SPACE
+         BNE   TESTNUMR                 NO
+         SPACE 1
+         CH    R6,=H'0'                 ANY NUMERICS FOUND
+         BE    TRLBLK                   NO
+         SPACE 1
+         MVI   NUMALWD,C'N'             LEADING SPACE NO MORE NUMERICS
+         MVI   PNTALWD,C'N'             NO MORE DEC POINTS ALLOWED
+         B     NEXTCHAR
+         SPACE 1
+*        SHORTEN INPUT LENGTH BY ONE FOR EACH TRAILING BLANK/- FOUND
+TRLBLK   EQU   *
+         LH    R8,WINLEN                SUBTRACT ONE FROM INPUT
+         SH    R8,=H'1'                 . LENGTH AND MOVE CURRENT
+         STH   R8,WINLEN                . ADDRESS IN WORKAREA BACK
+         STH   R8,DECPOS                . ONE
+         SH    R4,=H'1'
+         B     NEXTCHAR
+         SPACE 1
+TESTNUMR EQU   *
+*        MVC   0(2,R14),=C'11'
+         CLI   0(R3),C'0'
+         BL    EXIT                     LESS THAN ZERO
+*        MVC   0(2,R14),=C'12'
+         CLI   0(R3),C'9'
+         BH    EXIT                     GREATER THAN NINE
+*        THEREFORE CHARACTER IS NUMERIC
+*        MVC   0(2,R14),=C'16'
+         CLI   NUMALWD,C'S'             NUMERIC VALID ?
+         BNE   EXIT                     NO . ERROR
+         SPACE 1
+*        KEEP COUNT OF TRAILING ZEROS
+         CLI   NONZERO,C'S'             NON-ZERO NUMERIC ALREADY FOUND?
+         BE    NUMERIC                  YES. NO ACTION REQUIRED
+         CLI   0(R3),C'0'               IS NUMERIC ZERO?
+         BNE   NOTZERO                  NO. SET NON-ZERO FOUND SWITCH
+         LA    R7,1(R7)                 ADD 1 TO TRAILING ZEROS
+         B     NUMERIC
+NOTZERO  EQU   *
+         MVI   NONZERO,C'S'             NON-ZERO FOUND
+NUMERIC  EQU   *
+         SPACE 1
+         AH    R6,=H'1'                 ADD 1 TO NUMERICS FOUND
+         MVC   0(1,R4),0(R3)            MOVE INPUT TO WORK
+         BCTR  R4,0                     MOVE WORKAREA POSITION BACK 1
+         SPACE 1
+*                                       THIS CHARACTER O.K.
+NEXTCHAR EQU   *
+         BCTR  R3,0                     MOVE INPUT POSITION BACK 1
+         BCT   R5,LOOPSTRT              REPEAT WINLEN TIMES
+         SPACE 1
+*        END OF LOOP
+         SPACE 1
+*        MVC   0(2,R14),=C'15'
+*        IF NO SIGNIFICANT NUMERICS INPUT EXIT (I.E. R6 = ZERO)
+         CH    R6,=H'0'
+         BE    EXIT
+         SPACE
+*                                       WE NOW HAVE NUMERIC FIELD
+         EJECT
+***********************************************************************
+*
+*        NOW ENSURE THAT DECIMAL POINTS ALIGN , WITH NO LOSS OF
+*        SIGNIFICANT DIGITS , ALIGN VALUE IN OUTPUT FIELD.
+*
+***********************************************************************
+         SPACE 1
+*                                       PREPARE WORK AREA
+         LH    R5,WINLEN                NUMBER OF DECIMAL PLACES INPUT
+         SH    R5,DECPOS                . = INPUT LENGTH MINUS DECPOS
+         SPACE 1
+         LH    R7,DECPLACE              LOAD NUMBER DECIMAL PLACES REQ
+         SR    R7,R5                    CALCULATE OFFSET TO ALIGN
+*        MVC   0(2,R14),=C'13'
+         CH    R7,=H'0'                 TOO MANY DECIMALS FOUND ?
+         BL    EXIT                     YES
+*        IGNORE ALL LEADING ZEROS
+         LA    R3,WORKAREA              LOAD ADDRESS WORKAREA
+         AH    R3,WINLEN                POINT TO FIRST INPUT BYTE
+         SR    R3,R6
+         SPACE 1
+DRPLOOP  EQU   *
+         CLI   0(R3),C'0'               IS CHARACTER ZERO
+         BNE   CHKOUTP                  NO
+         LA    R3,1(R3)                 ADVANCE WORKAREA ADDRESS
+         CH    R6,=H'1'                 ALWAYS MOVE AT LEAST 1 BYTE
+         BE    CHKOUTP
+         BCT   R6,DRPLOOP               SUBTRACT LEAD ZERO FROM R6
+         SPACE 1
+CHKOUTP  EQU   *
+         SPACE 1
+*        CHECK OUTPUT FIELD LONG ENOUGH TO TAKE INPUT + ALIGNMENT
+*          REQUIRED . (I.E. OUTLEN GTE NUMERICS FOUND + ALIGNMENT)
+         LR    R9,R6
+         AR    R9,R7
+*        MVC   0(2,R14),=C'14'
+         CH    R9,WOUTLEN
+         BH    EXIT
+         SPACE 1
+*        SET OUTPUT AREA TO ZEROS
+         LH    R9,WOUTLEN               LENGTH FOR EX EXMVC
+         SH    R9,=H'1'
+         L     R10,OUTADDR              TARGET FOR EX EXMVC
+         LA    R11,ZEROS                SOURCE FOR EX EXMVC
+         EX    R9,EXMVC                 SET OUTPUT TO ZEROS
+         SPACE 1
+*        SET UP LENGTH FOR EX EXMVC.
+*        EQUAL TO NUMBER OF NUMERICS INPUT
+         SPACE 1
+         LR    R9,R6                    LOAD NUMERICS TO BE MOVED
+         SH    R9,=H'1'
+         SPACE 1
+*        SET TARGET FOR EX EXMVC.
+*        EQUAL TO ADDRESS OUTPUT FIELD PLUS
+*                   (OUTLEN - NUMBER OF NUMERICS - ALIGNMENT REQ)
+         SPACE 1
+         L     R10,OUTADDR              LOAD START OF OUTPUT AREA
+         AH    R10,OUTLEN
+         SR    R10,R6
+         SR    R10,R7
+         SPACE 1
+*        SET SOURCE FOR EX EXMVC.
+*        EQUAL TO ADDRESS WORKAREA +
+*                           (INPUT LENGTH - NUMBER OF NUMERICS)
+         SPACE 1
+         LA    R11,WORKAREA
+         AH    R11,WINLEN
+         SR    R11,R6
+         SPACE 1
+         EX    R9,EXMVC                 MOVE TO OUTPUT FIELD
+         SPACE 1
+*        IF NEGATIVE SIGN ENTERED OVER PUNCH LAST BYTE OF OUTPUT.
+         CLI   NEGATE,C'S'
+         BNE   NOSIGN
+         L     R10,OUTADDR              LOAD START OF OUTPUT AREA
+         AH    R10,OUTLEN
+         SH    R10,=H'1'                POINT TO LAST BYTE OUTPUT
+         NC    0(1,R10),=X'DF'          FORCE X'FX' TO X'DX'
+NOSIGN   EQU   *
+         SPACE 1
+         MVI   STRNGVAL,C'S'            INPUT FIELD VALID
+         EJECT
+*********************************************************************
+*        RETURN TO CALLING PROGRAM
+*********************************************************************
+EXIT     EQU   *
+         L     R13,4(13)
+         RETURN (14,12)
+         SPACE 3
+*        EXCUTE MOVE INSTRUCTION USING REGISTERS 9,10 AND 11
+EXMVC    MVC   0(0,R10),0(R11)
+*
+         DC    C'END OF EXECUTABLE CODE'
+*
+         LTORG
+*                                       WORK AREA ETC.
+         SPACE
+ZEROS    DC    32CL1'0'
+DECDLM   DC    C','
+WORKAREA DS    CL32
+DECPOS   DS    H
+PNTALWD  DS    CL1
+SGNALWD  DS    CL1
+NUMALWD  DS    CL1
+NEGATE   DS    CL1
+NONZERO  DS    CL1
+         DS    0F
+WINLEN   DS    H
+WOUTLEN  DS    H
+INADDR   DS    F
+OUTADDR  DS    F
+SAVEAREA DS    9D
+         SPACE
+PARMLIST DSECT                          PARAMETER LIST
+INLEN    DS    H                        LENGTH OF INPUT FIELD
+OUTLEN   DS    H                        LENGTH OF OUTPUT FIELD
+DECPLACE DS    H                        NUMBER OF DECIMAL PLACES
+SIGNV    DS    C                        SIGN ALLOWED OR NOT
+STRNGVAL DS    C                        RESULT INDICATOR
+*
+*******************************************************
+*                   REFERENCES                        *
+*******************************************************
+*        MODULE - CASE CHANGE PROGRAM                 *
+*        SYSTEM - XMVTAM1 (DBG)                       *
+*        AUTHOR - BERNABE LLOVERA                     *
+*        DATE   - NOVEMBER 1991                       *
+*                                                     *
+*     PROGRAM ENTRY POINT: CASE                       *
+*     OTHER ENTRIES:                                  *
+*                                                     *
+*     EXTERNAL REFERENCES:                            *
+*                                                     *
+*******************************************************
+*        ENTRY CASE
+*        EXTRN
+*
+*        PRINT NOGEN
+         TITLE ' UPPER/LOWER CASE SWITCH        * * *   CASE  * * *'
+*******************************************************
+*        CASE ROUTINE
+*******************************************************
+CASE     CSECT
+XXE      STM   R14,R12,12(R13) SAVE IN CALLERS SAVE AREA
+         LR    R12,R15         USE ENTRY ADDRESS
+         USING XXE,R12,R11
+         LA    R15,XXESAV1     GET PROGRAMS SAVE AREA ADDR
+         ST    R13,4(R15)      SAVE CALLERS SAVE AREA ADDR
+         ST    R15,8(R13)      SAVE PROGRAMS SAVE AREA IN CALLERS AREA
+         LR    R13,R15         GET PROGRAMS SAVE AREA ADDR
+         L     R11,XXESAV2     LOAD 2ND BASE REG
+         B     AROXXE          SKIP SAVE AREA FLD
+XXESAV1  DS    18F             RETURN SAVE REGS AREA
+XXESAV2  DC    A(XXE+4096)     2ND BASE REG ADDR
+         DC    CL12'<<CASE>>'  DUMP PROGRAM ID
+AROXXE   DS    0H
+*
+*        ENTER SAVE=YES,SAVAREA=SAVEAREA,OS=MVS
+*
+*******************************************************
+*  MODULE PARAMETERS
+*  1. FIELD TO BE PROCESSED.
+*  2. 'U'=UPPER | 'L'=LOWER.
+*  3. THE PARAMETER LIST CONTAINS
+*     LENGTH OF INPUT FIELD    PIC 9(2)      TWO BYTES
+*******************************************************
+*
+*******************************************************
+* CHECK PARAMETERS
+*******************************************************
+*        LA    R1,TESTPARM        GET TEST PARAMETERS ADDR
+         L     R2,0(R1)           GET FIELD ADDR
+         MVC   UPPLOW,0(R2)       UPPER | LOWER INDICATOR
+         L     R2,4(R1)           GET FIELD LEN ADDR
+         ST    R2,FLDADDR         SAVE INP FIELD ADDR
+         L     R2,8(R1)           GET FIELD LEN ADDR
+         MVC   FLDLEN(2),0(R2)    GET FIELD LEN CHARS
+*
+         LA    R2,FLDLEN          LEN INPUT CHARACTER DIGITS
+         LA    R3,FLDLEN1         LEN OUTPUT HEX DIGITS
+         LA    R0,1               OUTPUT LENGTH
+         BAL   R14,SHRINK1        SHRINK 2 NUMBERS IN 1 & MOVE
+         CLI   FLDLEN1,X'03'      LENGTH LOWER THAN 3?
+         BL    CASEEX             YES, EXIT
+         CLI   FLDLEN1,X'FF'      LENGTH GREATER THAN 255?
+         BH    CASEEX             YES, EXIT
+*
+         L     R2,FLDADDR         GET INP FIELD ADDR
+         SR    R3,R3              FIX FOR IC
+         IC    R3,FLDLEN1         GET FLD LEN
+*
+         BCTR  R3,0               UP TO LAST LOCATION ONLY
+         CLI   UPPLOW,C'U'        UPPER CONVERTION?
+         BNE   CASELOW            NO, TRY LOWER
+         EX    R3,UPPERINF        SWITCH INPUT TO UPPER CASE
+         B     CASEEX             EXIT
+*
+CASELOW  DS    0H
+         CLI   UPPLOW,C'L'        LOWER CONVERTION?
+         BNE   CASEEX             NO, DO NONE
+         EX    R3,LOWERINF        SWITCH INPUT TO LOWER CASE
+*
+CASEEX DS      0H
+         EXIT  SAVE=YES,RC=15
+*        EXIT  RESTORE=YES,SAVAREA=SAVESCR,RC=YES
+*
+UPPERINF TR    0(*-*,R2),UPPERTR  REPLACE LOWER WITH UPPER
+LOWERINF TR    0(*-*,R2),LOWERTR  REPLACE UPPER WITH LOWER
+*
+*******************************************************
+*     SHRINK: CONVERTS TWO CHAR DIGIT INTO ONE & MOVE *
+*     ON ENTRY: R2 = INPUT COUPLE OF BYTES            *
+*               R3 = OUTPUT SINGLE BYTE               *
+*               R0 = OUTPUT FIELD LENGTH              *
+*     ON EXIT:  CHARACTERS MOVED TO OUTPUT HEX DIGITS *
+*******************************************************
+SHRINK1  DS    0H
+         ST    R14,SVSHR1          PUSH RET ADDR
+         STM   R1,R6,SHRRR1        PUSH REGS
+         LR    R4,R0              INPUT LENGTH
+*
+SHRINKL1 DS    0H
+         NC    0(2,R2),=X'0F0F'   RESET ZONES TO 0
+         SR    R5,R5              FIX FOR IC
+         IC    R5,0(R2)           GET 1ST NUM CHAR
+         LR    R6,R5              GET A COPY FOR COMPUTE
+         MH    R6,=H'10'          SHIFT TO THE TENTH
+         IC    R5,1(R2)           GET 2ND NUM CHAR
+         AR    R6,R5              GET TENTH + UNITS
+         STC   R6,0(R3)           STORE SHRUNK DIGITS
+         LA    R2,2(R2)           BUMP INPUT
+         LA    R3,1(R3)           BUMP OUTPUT
+         BCT   R4,SHRINKL1        DO LOOP R4 TIMES
+*
+         LM    R1,R6,SHRRR1        POP REGS
+         L     R14,SVSHR1          POP RET ADDR
+         BR    R14
+*
+         LTORG
+*******************************************************
+*     VARIABLES & CONSTANTS                           *
+*******************************************************
+*SAVEAREA DS    18F             PROGRAM SAVE AREA
+*******************************************************
+SVSHR1   DS    F                SHRINK PUSH RET ADDR
+SHRRR1   DS    6F               SHRINK PUSH REGS
+*******************************************************
+UPPLOW   DC    CL1' '     UPPER | LOWER INDICATOR
+FLDLEN   DC    CL2' '     INPUT FIELD CHARACTER TYPE LENGTH
+FLDLEN1  DC    X'00'      FIELD HEX TYPE LENGTH
+FLDADDR  DC    F'0'       SAVE INP FIELD ADDR
+*******************************************************
+******** LOWER TO UPPRER TRANSLATION TALBLE
+UPPERTR  EQU   *
+         DC    X'000102030405060708090A0B0C0D0E0F'
+         DC    X'101112131415161718191A1B1C1D1E1F'
+         DC    X'202122232425262728292A2B2C2D2E2F'
+         DC    X'303132333435363738393A3B3C3D3E3F'
+         DC    X'404142434445464748494A4B4C4D4E4F'
+         DC    X'505152535455565758595A5B5C5D5E5F'
+         DC    X'606162636465666768696A6B6C6D6E6F'
+         DC    X'707172737475767778797A7B7C7D7E7F'
+         DC    X'80',C'ABCDEFGHI',X'8A8B8C8D8E8F'
+         DC    X'90',C'JKLMNOPQR',X'9A9B9C9D9E9F'
+         DC    X'A0A1',C'STUVWXYZ',X'AAABACADAEAF'
+         DC    X'B0B1B2B3B4B5B6B7B8B9BABBBCBDBEBF'
+         DC    X'C0C1C2C3C4C5C6C7C8C9CACBCCCDCECF'
+         DC    X'D0D1D2D3D4D5D6D7D8D9DADBDCDDDEDF'
+         DC    X'E0E1E2E3E4E5E6E7E8E9EAEBECEDEEEF'
+         DC    X'F0F1F2F3F4F5F6F7F8F9FAFBFCFDFEFF'
+******** UPPRER TO LOWER TRANSLATION TALBLE
+LOWERTR  EQU   *
+         DC    X'000102030405060708090A0B0C0D0E0F'
+         DC    X'101112131415161718191A1B1C1D1E1F'
+         DC    X'202122232425262728292A2B2C2D2E2F'
+         DC    X'303132333435363738393A3B3C3D3E3F'
+         DC    X'404142434445464748494A4B4C4D4E4F'
+         DC    X'505152535455565758595A5B5C5D5E5F'
+         DC    X'606162636465666768696A6B6C6D6E6F'
+         DC    X'707172737475767778797A7B7C7D7E7F'
+         DC    X'808182838485868788898A8B8C8D8E8F'
+         DC    X'909192939495969798999A9B9C9D9E9F'
+         DC    X'A0A1A2A3A4A5A6A7A8A9AAABACADAEAF'
+         DC    X'B0B1B2B3B4B5B6B7B8B9BABBBCBDBEBF'
+         DC    X'C0',X'818283848586878889',X'CACBCCCDCECF'
+         DC    X'D0',X'919293949596979899',X'DADBDCDDDEDF'
+         DC    X'E0E1',X'A2A3A4A5A6A7A8A9',X'EAEBECEDEEEF'
+         DC    X'F0F1F2F3F4F5F6F7F8F9FAFBFCFDFEFF'
+********************************************************
+*TESTPARM DC    A(PARM1)        1ST PARAMETER FOR TEST
+*         DC    A(PARM2)        2ND PARAMETER FOR TEST
+*         DC    A(PARM3)        3RD PARAMETER FOR TEST
+*         DC    CL15'HERE IS INP FLD'
+*PARM1    DC    CL10'U'         UPPER CASE INDICATOR
+*PARM2    DC    CL10'XXXXX'     OBJECT FIELD
+*PARM3    DC    CL2'10'         FIELD LENGTH
+*
+*******************************************************
+*                   REFERENCES                        *
+*******************************************************
+*        MODULE - CENTERING DATA PROGRAM              *
+*        SYSTEM - XMVTAM1 (DBG)                       *
+*        AUTHOR - BERNABE LLOVERA                     *
+*        DATE   - NOVEMBER 1991                       *
+*                                                     *
+*     PROGRAM ENTRY POINT: CENTER                     *
+*     OTHER ENTRIES:                                  *
+*                                                     *
+*     EXTERNAL REFERENCES:                            *
+*                                                     *
+*******************************************************
+*        ENTRY CENTER
+*        EXTRN
+*
+*        PRINT NOGEN
+         TITLE ' FIELD DATA CENTERING           * * *   CENTER  * * *'
+*******************************************************
+*        CENTER ROUTINE
+*******************************************************
+CENTER   CSECT
+XXF      STM   R14,R12,12(R13) SAVE IN CALLERS SAVE AREA
+         LR    R12,R15         USE ENTRY ADDRESS
+         USING XXF,R12,R11
+         LA    R15,XXFSAV1     GET PROGRAMS SAVE AREA ADDR
+         ST    R13,4(R15)      SAVE CALLERS SAVE AREA ADDR
+         ST    R15,8(R13)      SAVE PROGRAMS SAVE AREA IN CALLERS AREA
+         LR    R13,R15         GET PROGRAMS SAVE AREA ADDR
+         L     R11,XXFSAV2     LOAD 2ND BASE REG
+         B     AROXXF          SKIP SAVE AREA FLD
+XXFSAV1  DS    18F             RETURN SAVE REGS AREA
+XXFSAV2  DC    A(XXF+4096)     2ND BASE REG ADDR
+         DC    CL12'<<CENTER>>'  DUMP PROGRAM ID
+AROXXF   DS    0H
+*
+*        ENTER SAVE=YES,SAVAREA=SAVEAREA,OS=MVS
+*
+*******************************************************
+*  MODULE PARAMETERS
+*  1. FIELD TO BE CENTERED.
+*  2. THE PARAMETER LIST CONTAINS
+*     LENGTH OF INPUT FIELD    PIC 9(2)      TWO BYTES
+*******************************************************
+*
+*******************************************************
+* CHECK PARAMETERS
+*******************************************************
+*        LA    R1,TESTPARM        GET TEST PARAMETERS ADDR
+         L     R2,0(R1)           GET FIELD ADDR
+         ST    R2,FLDADDR1        SAVE INP FIELD ADDR
+         L     R2,4(R1)           GET FIELD LEN ADDR
+         MVC   FLDLENS(2),0(R2)   GET FIELD LEN CHARS
+*
+         LA    R2,FLDLENS         LEN INPUT CHARACTER DIGITS
+         LA    R3,FLDLENS1        LEN OUTPUT HEX DIGITS
+         LA    R0,1               OUTPUT LENGTH
+         BAL   R14,SHRINK2        SHRINK 2 NUMBERS IN 1 & MOVE
+         CLI   FLDLENS1,X'03'     LENGTH LOWER THAN 3?
+         BL    CENTEREX           YES, EXIT
+         CLI   FLDLENS1,X'FF'     LENGTH GREATER THAN 255?
+         BH    CENTEREX           YES, EXIT
+*
+         MVC   WORKFLD,WORKFLD-1  ERASE FLD WORK AREA
+         L     R2,FLDADDR1        GET INP FIELD ADDR
+         SR    R3,R3              FIX FOR IC
+         IC    R3,FLDLENS1        GET FLD LEN
+*
+         BCTR  R3,0               GET LAST FIELD LOCATION
+         STH   R3,LWIDTH          AS A PARAMENTER FOR CENTRE
+         LR    R4,R2              START OF FIELD
+         LA    R7,0(R3,R4)        END OF FIELD
+         BAL   R14,CENTRE         CENTER ON WORK FIELD
+*
+         MVI   0(R2),C' '         ERASE INPUT
+         BCTR  R3,0               FIX FOR ERASE EX -2
+         EX    R3,ERASEIF         ERASE INPUT FIELD
+         LA    R3,1(R3)           FIX FOR RESET EX -1
+         EX    R3,RESTIF          RESTORE INPUT FIELD
+*
+CENTEREX DS    0H
+         EXIT  SAVE=YES,RC=15
+*        EXIT  RESTORE=YES,SAVAREA=SAVESCR,RC=YES
+*
+ERASEIF  MVC   1(*-*,R2),0(R2)    ERASE INPUT FLD
+RESTIF   MVC   0(*-*,R2),WORKFLD  RESTORE INP FLD
+*
+*******************************************************
+*     SHRINK: CONVERTS TWO CHAR DIGIT INTO ONE & MOVE *
+*     ON ENTRY: R2 = INPUT COUPLE OF BYTES            *
+*               R3 = OUTPUT SINGLE BYTE               *
+*               R0 = OUTPUT FIELD LENGTH              *
+*     ON EXIT:  CHARACTERS MOVED TO OUTPUT HEX DIGITS *
+*******************************************************
+SHRINK2  DS    0H
+         ST    R14,SVSHR2          PUSH RET ADDR
+         STM   R1,R6,SHRRR2        PUSH REGS
+         LR    R4,R0              INPUT LENGTH
+*
+SHRINKL2 DS    0H
+         NC    0(2,R2),=X'0F0F'   RESET ZONES TO 0
+         SR    R5,R5              FIX FOR IC
+         IC    R5,0(R2)           GET 1ST NUM CHAR
+         LR    R6,R5              GET A COPY FOR COMPUTE
+         MH    R6,=H'10'          SHIFT TO THE TENTH
+         IC    R5,1(R2)           GET 2ND NUM CHAR
+         AR    R6,R5              GET TENTH + UNITS
+         STC   R6,0(R3)           STORE SHRUNK DIGITS
+         LA    R2,2(R2)           BUMP INPUT
+         LA    R3,1(R3)           BUMP OUTPUT
+         BCT   R4,SHRINKL2        DO LOOP R4 TIMES
+*
+         LM    R1,R6,SHRRR2        POP REGS
+         L     R14,SVSHR2          POP RET ADDR
+         BR    R14
+*
+*******************************************************
+*     CENTRE - CENTER STRING ON WORK FIELD            *
+*     ON ENTRY: R14 = RETURN ADDR                     *
+*               R4  = START OF STRING                 *
+*               R7  = END OF STRING                   *
+*           LWIDTH  = CENTERING WIDTH                 *
+*     ON EXIT:  R0  = 1ST NON BLANK POS WITHIN STR    *
+*               R1  = LEN OF STRING                   *
+*******************************************************
+CENTRE   DS    0H
+         ST    R14,SVCEN        PUSH RET ADDR
+         STM   R1,R9,CENRR      PUSH REGS
+         XR    R1,R1            ZAP R1
+         LR    R8,R4            SAVE STR START FOR RTRIM
+         LR    R9,R7            SAVE STR END FOR RTRIM
+         BAL   R14,LFTNBL       DO LEFT TRIM
+         LTR   R0,R0            ANY DATA?
+         BZ    CENTEX           NO, EXIT
+         LR    R3,R0            SAVE LFT POS
+         LR    R4,R9            GET STR END FOR RTRIM
+         LR    R7,R8            GET STR START FOR RTRIM
+         BAL   R14,RITNBL       DO RITE TRIM
+         A     R0,=F'1'         INCREMENT STR END POS BY 1
+         SR    R0,R3            COMPUTE STR LEN
+         LR    R1,R0            RETURNED LEN
+         LR    R0,R3            RETURNED 1ST POS
+*
+         LA    R4,WORKFLD       START OF WORK FIELD
+         LH    R9,LWIDTH        GET WIDTH
+         LA    R9,0(R9,R4)      END OF WORK FIELD
+*
+         SR    R9,R4            CALCULATE TOTAL SIZE
+         SR    R9,R1            GET SPACE LEN
+         SRL   R9,1             DIVIDE BY 2
+         BCTR  R3,0             DECREMENT LFT POS
+         LA    R8,0(R3,R8)      LOAD STR 1ST POS ADDR
+         LA    R3,WORKFLD(R9)   LOAD CENTER 1ST POS ADDR
+         BCTR  R1,0             DECREMENT LEN BY 1
+         EX    R1,CENTMV        MOVE TO WORK FLD
+         B     CENTEX           SKIP EX MVC
+*
+CENTMV   MVC   0(*-*,R3),0(R8)   R3=WORK FLD CENTER , R8=STRING ADDR
+*
+CENTEX   DS    0H
+         LM    R1,R9,CENRR      POP REGS
+         L     R14,SVCEN        POP RET ADDR
+         BR    R14
+*
+*******************************************************
+*     RITNBL - STRING 1ST RITE NON BLANK              *
+*     ON ENTRY: R14 = RETURN ADDR                     *
+*               R7  = START OF STRING                 *
+*               R4  = END OF STRING                   *
+*     ON EXIT:  R0  = 1ST NON BLANK POS WITHIN STR    *
+*******************************************************
+RITNBL   DS    0H
+         ST    R14,SVRIT        PUSH RET ADDR
+         STM   R1,R7,RITRR      PUSH REGS
+*        LA    R7,STRING        START OF STRING
+         LR    R5,R7            ALSO R5 FOR COMPUTE
+*        LA    R4,STRNGEND      END OF STRING
+         L     R6,=F'-1'        ARG LEN
+RITLP    DS    0H
+         CLI   0(R4),C' '       IS IT A BLANK?
+         BNE   RITEX            NO, EXIT
+         BXH   R4,R6,RITLP      DO WHILE (R4 + R6) > R7
+         CLI   0(R4),C' '       IS IT A BLANK?
+         BNE   RITEX            NO, EXIT
+         SR    R0,R0            SHOW STRING EMPTY
+         B     RITEX1           SKIP COMPUTE
+RITEX    DS    0H
+         LR    R0,R4            COMPUTE
+         SR    R0,R5            EXACT
+         A     R0,=F'1'         PLACE
+*
+RITEX1   DS    0H
+         LM    R1,R7,RITRR      POP REGS
+         L     R14,SVRIT        POP RET ADDR
+         BR    R14
+*
+*******************************************************
+*     LFTNBL - STRING 1ST LEFT NON BLANK              *
+*     ON ENTRY: R14 = RETURN ADDR                     *
+*               R7  = END OF STRING                   *
+*               R4  = START OF STRING                 *
+*     ON EXIT:  R0  = 1ST NON BLANK POS WITHIN STR    *
+*******************************************************
+LFTNBL   DS    0H
+         ST    R14,SVLFT        PUSH RET ADDR
+         STM   R1,R7,LFTRR      PUSH REGS
+*        LA    R7,STRNGEND      END OF STRING
+*        LA    R4,STRING        START OF STRING
+         LR    R5,R4            ALSO R5 FOR COMPUTE
+         LA    R6,1             ARG LEN
+LFTLP    DS    0H
+         CLI   0(R4),C' '       IS IT A BLANK?
+         BNE   LFTEX            NO, EXIT
+         BXLE  R4,R6,LFTLP      DO WHILE (R4 + R6) <= R7
+         SR    R0,R0            SHOW STRING EMPTY
+         B     LFTEX1           SKIP COMPUTE
+LFTEX    DS    0H
+         LR    R0,R4            COMPUTE
+         SR    R0,R5            EXACT
+         A     R0,=F'1'         PLACE
+LFTEX1   DS    0H
+         LM    R1,R7,LFTRR      POP REGS
+         L     R14,SVLFT        POP RET ADDR
+         BR    R14
+*
+         LTORG
+*******************************************************
+*     VARIABLES & CONSTANTS                           *
+*******************************************************
+*SAVEAREA DS    18F             PROGRAM SAVE AREA
+*******************************************************
+SVCEN    DS    F                CENTER PUSH RET ADDR
+CENRR    DS    9F               CENTER PUSH REGS
+SVRIT    DS    F                RITNBL PUSH RET ADDR
+RITRR    DS    7F               RITNBL PUSH REGS
+SVLFT    DS    F                LFTNBL PUSH RET ADDR
+LFTRR    DS    7F               LFTNBL PUSH REGS
+SVSHR2   DS    F                SHRINK PUSH RET ADDR
+SHRRR2   DS    6F               SHRINK PUSH REGS
+*******************************************************
+LWIDTH   DC    H'0'       LENGTH PARAMENTER FOR CENTRE
+FLDLENS  DC    CL2' '     INPUT FIELD CHARACTER TYPE LENGTH
+FLDLENS1 DC    X'00'      FIELD HEX TYPE LENGTH
+         DC    CL15'HERE IS OUT FLD'
+         DC    CL1' '     ERASOR
+WORKFLD  DC    CL255' '   CENTER WORK FIELD
+FLDADDR1 DC    F'0'       SAVE INP FIELD ADDR
+********************************************************
+*TESTPARM DC    A(PARM1)   1ST PARAMETER FOR TEST
+*         DC    A(PARM2)   2ND PARAMETER FOR TEST
+*         DC    CL15'HERE IS INP FLD'
+*PARM1    DC    CL10'XXXXX'
+*PARM2    DC    CL2'10'      FIELD LENGTH
+         END    BINOD
+

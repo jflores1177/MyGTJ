@@ -1,0 +1,169 @@
+ INITIAL MENU TREE FOR XMVTAM1 (FIX FORMAT)                             00010070
+*********************************************************************   00010126
+* INPUT FILE OPTIONS (@=LEVEL & BOX DATA) (T=MENU OPTIONS TEXT)         00012026
+*********************************************************************   00012126
+* NAME=<MENU TREE NAME>                                                 00014026
+* C                      TR LC BR RC H=HORIZONTAL                       00015071
+* O                      OO EO OO IO V=VERTICAL N=NO LINE (HORIZ)       00016071
+* M                      PW FL TW TL P=PROCESS  N=NO BOX (VERTICAL)     00017071
+* N                      .. T. T. E. S=SYSTEM   BLNK=BOX/LINE           00018038
+* D ------ LEVEL ------- .. .. M. .. . PROCES.. .                       00019038
+* @,01000000000000000000,02,04,05,23,P,PROC01  ,N                       00019138
+* T,PROCESO DE PRUEBA                               +---------------+   00019238
+* T,TEST PROCESS                                    |COMMANDS ALWAYS|   00019338
+* T,COMMAS ONLY TO MAKE IT EASY ON THE EYE          |START ON COL 1 |   00019438
+*********************************************************************   00020003
+                                                                        00030041
+                                                                        00031041
+NAME=INITIAL ,- ONLINE APPLICATIONS FRONT END SYSTEM  ,(39 MAX)         00038071
+@,01000000000000000000,03,01,00,00,H,        ,  SYSTEM MAIN MENU        00040071
+T,Maint Reports Files Sub-systems                                       00051079
+                                                                        00060003
+@,01010000000000000000,04,01,13,40,V,        ,    PROCESOS              00070072
+T,File maintenances:                                                    00080079
+T,Global systems options * menu *:                                      00090079
+T,Binary tree node processor:                                           00091079
+T,Memory swap areas:                                                    00100079
+T,Cancel process:                                                       00110079
+T,Register data update:                                                 00111079
+T,Exit:                                                                 00112079
+T,Session end:                                                          00113079
+                                                                        00120005
+@,01010100000000000000,00,00,00,00,P,PANEL   ,                          00130074
+@,01010300000000000000,00,00,00,00,P,BINOD   ,                          00131083
+@,01010200000000000000,07,03,11,30,V,        ,    SUB SUICHES           00140072
+T,VM system:                                                            00140279
+T,MVS system  * menu *:                                                 00140379
+T,VSE system:                                                           00140479
+                                                                        00141020
+@,01010201000000000000,00,00,00,00,P,VMFLGS  ,                          00142072
+@,01010202000000000000,10,05,14,36,V,        ,    SUB SUB MVS           00142172
+T,Payroll system:                                                       00142279
+T,TSO work areas:                                                       00142379
+T,VTAM work areas:                                                      00142479
+                                                                        00144021
+@,01010202010000000000,00,00,00,00,S,NOMINA  ,    SUB SUB MVS           00145072
+                                                                        00146069
+@,01010300000000000000,00,00,00,00,P,PROC03  ,                          00150072
+@,01010400000000000000,00,00,00,00,P,PROC04  ,                          00160072
+@,01010500000000000000,00,00,00,00,P,PROC05  ,                          00161072
+@,01010600000000000000,00,00,00,00,P,PROC06  ,                          00162072
+@,01010700000000000000,00,00,00,00,P,PROC07  ,                          00163072
+@,01010800000000000000,00,00,00,00,P,PROC08  ,                          00164072
+                                                                        00170003
+@,01020000000000000000,04,09,09,33,V,        ,    REPORTES              00180072
+T,Batch input queue:                                                    00190079
+T,Batch output queue:                                                   00200079
+T,Waiting for alloc:                                                    00210079
+T,Active queue:                                                         00220079
+                                                                        00230005
+@,01020100000000000000,00,00,00,00,P,LIST01  ,                          00240078
+@,01020200000000000000,00,00,00,00,P,LIST02  ,                          00250072
+@,01020300000000000000,00,00,00,00,P,LIST03  ,                          00260072
+@,01020400000000000000,00,00,00,00,P,LIST04  ,                          00270072
+                                                                        00280003
+@,01030000000000000000,04,19,07,40,V,        ,    ARCHIVOS              00290072
+T,PDS datasets:                                                         00300079
+T,Flat files:                                                           00310079
+                                                                        00320005
+@,01030100000000000000,00,00,00,00,P,FILE01  ,                          00330072
+@,01030200000000000000,00,00,00,00,P,FILE02  ,                          00340072
+                                                                        00350003
+@,01040000000000000000,04,27,08,50,V,        ,    SUB-SISTEMAS          00360072
+T,Payroll system:                                                       00370079
+T,General ledger:                                                       00380079
+T,Calling system:                                                       00390079
+                                                                        00430005
+@,01040100000000000000,00,00,00,00,S,NOMINA  ,                          00440072
+@,01040200000000000000,00,00,00,00,S,CONTABLE,                          00450072
+@,01040300000000000000,00,00,00,00,S,LLAMADAS,                          00460072
+                                                                        00470049
+*******************************************************************     00501047
+NAME=NOMINA  ,- SISTEMA DE NOMINA DE PAGOS           ,(39 MAX)          00510072
+@,01000000000000000000,03,01,00,00,H,        ,  MENU PRINC NOMINA       00520072
+T,Pro-perd Listados Mantenim Proc-eventuales                            00530079
+                                                                        00540046
+@,01010000000000000000,04,01,09,39,V,        ,    PRO-PERD              00550072
+T,Proceso de prenomina (obreros):                                       00560079
+T,Proceso de prenomina (empleados):                                     00570079
+T,Emision de recibos de pago:                                           00580079
+T,Proceso de cierre periodico:                                          00590079
+                                                                        00640046
+@,01020000000000000000,04,12,10,30,V,        ,    LISTADOS              00660072
+T,Nomina:                                                               00670079
+T,Personal:                                                             00680079
+T,Conceptos:                                                            00690079
+T,Asignaciones:                                                         00700079
+T,Deducciones:                                                          00710079
+                                                                        00760047
+@,01030000000000000000,04,22,10,40,V,        ,    MANTEMIM              00761072
+T,Nomina:                                                               00762079
+T,Personal:                                                             00763079
+T,Conceptos:                                                            00764079
+T,Asignaciones:                                                         00765079
+T,Deducciones:                                                          00766079
+                                                                        00767047
+@,01040000000000000000,04,34,08,53,V,        ,    PROC-EVENTUALES       00840072
+T,Liquidaciones:                                                        00850079
+T,Vacaciones:                                                           00860079
+T,Fideicomisos:                                                         00870079
+                                                                        00871059
+*******************************************************************     00880059
+NAME=CONTABLE,- SISTEMA DE CONTABILIDAD GENERAL      ,(39 MAX)          00890079
+@,01000000000000000000,03,01,00,00,H,        ,  MENU PRINC NOMINA       00900072
+T,Entradas Salidas Mantemiento                                          00910079
+                                                                        00911059
+@,01010000000000000000,04,01,09,43,V,        ,    ENTRADAS              00912072
+T,Entrada de comprobantes:                                              00913079
+T,Actualizacion del maestro de cuentas:                                 00914079
+T,Cierre contable (mensual):                                            00915079
+T,Cierre contable (anual):                                              00916079
+                                                                        00917059
+@,01020000000000000000,04,12,10,51,V,        ,    SALIDAS               00918072
+T,Mayor general analitico:                                              00919079
+T,Balance de comprobacion detallado:                                    00919179
+T,Balance de comprobacion resumido:                                     00919279
+T,Listado de comprobantes:                                              00919379
+T,Balance general:                                                      00919479
+                                                                        00919559
+@,01030000000000000000,04,21,08,39,V,        ,    MANTEMIM              00919672
+T,Cuentas:                                                              00919779
+T,Comprobantes:                                                         00919879
+T,Usuarios:                                                             00919979
+                                                                        00922059
+*******************************************************************     00924063
+NAME=LLAMADAS,- MONITOR DE PRIORIDAD DE LLAMADAS     ,(39 MAX)          00925072
+@,01000000000000000000,03,01,00,00,H,        ,  MENU PRINC NOMINA       00926072
+T,Displays Informes Catalogo Procesos                                   00927079
+                                                                        00928063
+@,01010000000000000000,04,01,07,35,V,        ,    DISPLAYS              00929072
+T,Extraccion de llamadas:                                               00930079
+T,Cierre periodico del sistema:                                         00940079
+                                                                        01010063
+@,01020000000000000000,04,12,07,54,V,        ,    INFORMES              01210072
+T,Listados de archivos  * sub-menu *:                                   01220079
+T,Estadistica de llamadas prioritarias:                                 01230079
+                                                                        01260063
+@,01020100000000000000,06,14,13,40,V,        ,    INFORMES              01270072
+T,Archivo de control:                                                   01280079
+T,Archivo de usuarios:                                                  01290079
+T,Archivo de llamadas:                                                  01291079
+T,Archivo de log:                                                       01292079
+T,Tabla de prioridades:                                                 01293079
+T,Otras tablas:                                                         01294079
+                                                                        01300063
+@,01030000000000000000,04,22,11,48,V,        ,    ARCHIVOS              01320072
+T,Archivo de control:                                                   01321079
+T,Archivo de usuarios:                                                  01322079
+T,Archivo de llamadas:                                                  01323079
+T,Archivo de log:                                                       01324079
+T,Tabla de prioridades:                                                 01325079
+T,Otras tablas:                                                         01326079
+                                                                        01380063
+@,01040000000000000000,04,34,09,66,V,        ,    SUB-SISTEMAS          01390072
+T,Reorganizacion de archivos:                                           01400079
+T,Cambio de usuarios:                                                   01410079
+T,Cambio de clave secreta:                                              01420079
+T,Actualizacion de la ayuda:                                            01421079
+                                                                        01430063
+
